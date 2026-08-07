@@ -1,14 +1,13 @@
 import express from 'express';
 import helmet from 'helmet';
-import { RegisterEmployee } from './application/use-cases/register-employee.ts';
-import { GetEmployeeById } from './application/use-cases/get-employee-by-id.ts';
+import { RegisterEmployee } from './application/use-cases/register-employee.use-case.ts';
+import { GetEmployeeById } from './application/use-cases/get-employee-by-id.use-case.ts';
 import type { EmployeeRepository } from './domain/repositories/employee.repository.ts';
-import { InMemoryEmployeeRepository } from './infrastructure/persistence/in-memory-employee.repository.ts';
 import { createEmployeeRouter } from './infrastructure/http/routes/employee.routes.ts';
 import healthRouter from './infrastructure/http/routes/health.routes.ts';
-import { errorHandler } from './infrastructure/http/middlewares/error-handler.ts';
+import { errorHandler } from './infrastructure/http/middlewares/error-handler.middleware.ts';
 
-export function createApp(repository: EmployeeRepository = new InMemoryEmployeeRepository()) {
+export function createApp(repository: EmployeeRepository) {
   const app = express();
   const registerEmployee = new RegisterEmployee(repository);
   const getEmployeeById = new GetEmployeeById(repository);
@@ -27,5 +26,3 @@ export function createApp(repository: EmployeeRepository = new InMemoryEmployeeR
 
   return app;
 }
-
-export default createApp();

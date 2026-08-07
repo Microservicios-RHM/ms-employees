@@ -2,6 +2,31 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import request from 'supertest';
 import { createApp } from '../src/app.ts';
+import type { Employee } from '../src/domain/entities/employee.entity.ts';
+import type { EmployeeRepository } from '../src/domain/repositories/employee.repository.ts';
+
+class TestEmployeeRepository implements EmployeeRepository {
+  private readonly employees = new Map<string, Employee>();
+
+  async findById(id: string): Promise<Employee | undefined> {
+    return this.employees.get(id);
+  }
+
+  async findByEmail(email: string): Promise<Employee | undefined> {
+    return [...this.employees.values()].find((item) => item.email === email.toLowerCase());
+  }
+
+  async findByEmployeeNumber(employeeNumber: string): Promise<Employee | undefined> {
+    return [...this.employees.values()].find((item) => item.numeroEmpleado === employeeNumber);
+  }
+
+  async save(item: Employee): Promise<Employee> {
+    this.employees.set(item.id, item);
+    return item;
+  }
+}
+
+const createTestApp = () => createApp(new TestEmployeeRepository());
 
 const employee = {
   id: 'E001',
@@ -18,7 +43,7 @@ const employee = {
 
 describe('API de empleados', () => {
   test('registra y posteriormente consulta un empleado', async () => {
-    const app = createApp();
+    const app = createTestApp();
 
     const created = await request(app).post('/empleados').send(employee).expect(200);
     assert.deepEqual(created.body, employee);
@@ -28,12 +53,12 @@ describe('API de empleados', () => {
   });
 
   test('responde el mensaje exacto cuando el empleado no existe', async () => {
-    const response = await request(createApp()).get('/empleados/E999').expect(404);
+    const response = await request(createTestApp()).get('/empleados/E999').expect(404);
     assert.equal(response.text, 'El empleado con id E999 no existe');
   });
 
   test('responde el mensaje exacto para rutas o métodos no soportados', async () => {
-    const app = createApp();
+    const app = createTestApp();
     const unknownRoute = await request(app).get('/otra-ruta').expect(404);
     const unsupportedMethod = await request(app).put('/empleados/E001').expect(404);
 
@@ -42,7 +67,7 @@ describe('API de empleados', () => {
   });
 
   test('rechaza emails duplicados sin distinguir mayúsculas', async () => {
-    const app = createApp();
+    const app = createTestApp();
     await request(app).post('/empleados').send(employee).expect(200);
 
     const response = await request(app)
@@ -55,7 +80,7 @@ describe('API de empleados', () => {
   });
 
   test('rechaza números de empleado duplicados', async () => {
-    const app = createApp();
+    const app = createTestApp();
     await request(app).post('/empleados').send(employee).expect(200);
 
     const response = await request(app)
@@ -67,7 +92,7 @@ describe('API de empleados', () => {
   });
 
   test('valida el modelo canónico y solo permite estado ACTIVO', async () => {
-    const response = await request(createApp())
+    const response = await request(createTestApp())
       .post('/empleados')
       .send({ ...employee, email: 'correo-invalido', estado: 'RETIRADO', cargo: '' })
       .expect(400);
@@ -80,7 +105,7 @@ describe('API de empleados', () => {
   });
 
   test('rechaza JSON mal formado', async () => {
-    const response = await request(createApp())
+    const response = await request(createTestApp())
       .post('/empleados')
       .set('Content-Type', 'application/json')
       .send('{')
@@ -90,7 +115,7 @@ describe('API de empleados', () => {
   });
 
   test('expone el health check', async () => {
-    const response = await request(createApp()).get('/health').expect(200);
+    const response = await request(createTestApp()).get('/health').expect(200);
     assert.deepEqual(response.body, { status: 'UP' });
   });
 });

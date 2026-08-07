@@ -1,23 +1,51 @@
 # Microservicio de empleados
 
-Servicio HTTP del Reto 1 para registrar y consultar empleados. Está construido con Node.js,
-TypeScript y Express, y conserva los datos en memoria durante la ejecución del proceso.
+Servicio HTTP para registrar y consultar empleados, construido con Node.js, TypeScript, Express y
+PostgreSQL. Los registros se almacenan exclusivamente en el schema `employees` de la base `rhm`.
 
 ## Requisitos
 
-- Node.js 24 y npm 11, o Docker.
+- Node.js 24 y npm 11.
+- PostgreSQL de `rhm-database-infrastructure` disponible en `localhost:5433`.
+- Docker para ejecución contenerizada.
 
-## Ejecución local
+## Configuración local
+
+Instalar dependencias y crear la configuración privada:
 
 ```bash
 npm ci
+cp .env.example .env
+```
+
+Variables principales:
+
+```env
+DB_HOST=localhost
+DB_PORT=5433
+DB_NAME=rhm
+DB_SCHEMA=employees
+DB_USER=employees_service
+DB_PASSWORD=la_clave_configurada_en_la_infraestructura
+```
+
+El archivo `.env` nunca se versiona. La aplicación valida toda la configuración al arrancar y falla
+inmediatamente si falta una variable requerida o PostgreSQL no está disponible.
+
+## Migraciones y ejecución
+
+Las migraciones pertenecen a este microservicio y se registran en
+`employees.schema_migrations`. Son idempotentes: ejecutar el comando varias veces no repite cambios.
+
+```bash
+npm run db:migrate
 npm run dev
 ```
 
-El servicio queda disponible en `http://localhost:8080`. La variable `PORT` permite cambiar el
-puerto. Los datos se pierden al reiniciar porque este reto usa deliberadamente memoria.
+El servidor también aplica las migraciones pendientes antes de comenzar a escuchar peticiones.
+Queda disponible en `http://localhost:8080`.
 
-Comandos de calidad:
+Comandos disponibles:
 
 ```bash
 npm run typecheck
@@ -29,13 +57,13 @@ npm run start:dist
 
 ## API
 
-### Estado del servicio
+Health check:
 
 ```bash
 curl -i http://localhost:8080/health
 ```
 
-### Registrar un empleado
+Registrar un empleado:
 
 ```bash
 curl -i -X POST http://localhost:8080/empleados \
@@ -54,50 +82,88 @@ curl -i -X POST http://localhost:8080/empleados \
   }'
 ```
 
-Retorna `200 OK`. En este reto `estado` solo admite `ACTIVO`. Un email, identificador o número de
-empleado repetido retorna `400 Bad Request` con un mensaje descriptivo.
-
-### Consultar por identificador
+Consultar por identificador:
 
 ```bash
 curl -i http://localhost:8080/empleados/E001
 curl -i http://localhost:8080/empleados/E999
 ```
 
-La segunda petición retorna `404` y el texto exacto `El empleado con id E999 no existe`. Cualquier
-ruta o método no soportado retorna `404` con `Recurso no encontrado`.
+## Persistencia
+
+La primera migración crea:
+
+- `employees.employees`, con el modelo canónico completo.
+- Clave primaria para `id`.
+- Restricción única para `numero_empleado`.
+- Índice único sobre `lower(email)` para evitar duplicados sin distinguir mayúsculas.
+- Restricción de estados `ACTIVO`, `EN_VACACIONES` y `RETIRADO`.
+- Índices para `departamento_id` y `estado`.
+- Trazabilidad mediante `created_at` y `updated_at`.
+
+El código realiza validaciones descriptivas y PostgreSQL mantiene las restricciones como garantía
+final ante solicitudes concurrentes. El servicio utiliza un pool de conexiones y consultas
+parametrizadas.
 
 ## Docker
 
+La red `rhm-network` se crea al levantar el repositorio de infraestructura. Preparar las variables
+para el contenedor:
+
 ```bash
-docker build -t servidor-empleados .
-docker run --rm -p 8080:8080 servidor-empleados
+cp .env.docker.example .env.docker
 ```
 
-La imagen usa una construcción multietapa, ejecuta el proceso con un usuario sin privilegios e
-incluye un `HEALTHCHECK` sobre `/health`.
+Actualizar la contraseña y ejecutar:
+
+```bash
+docker build -t servidor-empleados .
+docker run --rm \
+  --name ms-employees \
+  --network rhm-network \
+  --env-file .env.docker \
+  -p 8080:8080 \
+  servidor-empleados
+```
+
+Dentro de Docker, PostgreSQL se resuelve como `postgres:5432`; `localhost:5433` solamente se usa
+cuando Node se ejecuta directamente en Windows. La imagen aplica migraciones antes de iniciar el
+servidor, usa construcción multietapa y ejecuta Node con un usuario sin privilegios.
 
 ## Arquitectura
-
-El código aplica una separación por capas inspirada en arquitectura limpia:
 
 ```text
 src/
 ├── domain/          Entidad, errores y contrato del repositorio
-├── application/     Casos de uso (registrar y consultar)
-└── infrastructure/  Express, validación HTTP y almacenamiento en memoria
+├── application/     Casos de uso de registro y consulta
+└── infrastructure/
+    ├── http/        Controladores, rutas, schemas y errores HTTP
+    └── persistence/
+        └── postgres/ Cliente, repositorio y migraciones PostgreSQL
 ```
 
-El dominio no depende de Express ni del almacenamiento. Los casos de uso dependen de la interfaz
-`EmployeeRepository`, de modo que una futura base de datos puede sustituir el repositorio en memoria
-sin modificar las reglas de negocio. `createApp` funciona como raíz de composición e inyecta las
-implementaciones; las pruebas crean una instancia aislada por escenario.
+Los casos de uso dependen de `EmployeeRepository`, no de `pg`. La raíz de composición construye
+`PostgresEmployeeRepository`; no existe una implementación en memoria en el código de producción.
+Las pruebas unitarias inyectan un doble aislado y la integración real fue verificada contra
+PostgreSQL.
 
-## Decisiones relevantes
+### Convención de nombres
 
-- Validación de entrada mediante Zod y rechazo de propiedades desconocidas.
-- Unicidad de `id`, `email` (sin distinguir mayúsculas) y `numeroEmpleado`.
-- Respuestas de error consistentes, excepto los textos planos exigidos expresamente por el reto.
-- Cabeceras de seguridad mediante Helmet y ocultamiento de `X-Powered-By`.
-- Cierre ordenado ante `SIGINT` y `SIGTERM`.
-- Pruebas HTTP automatizadas como evidencia reproducible de los casos exigidos.
+Todos los archivos usan `kebab-case` y un sufijo que expresa su responsabilidad:
+
+```text
+employee.entity.ts
+register-employee.use-case.ts
+employee.repository.ts
+postgres-employee.repository.ts
+employee.controller.ts
+employee.routes.ts
+employee.schema.ts
+error-handler.middleware.ts
+environment.config.ts
+001-create-employees-table.migration.ts
+migration.runner.ts
+```
+
+Los únicos puntos de entrada sin sufijo son `app.ts` y `server.ts`, nombres convencionales en
+aplicaciones Express.

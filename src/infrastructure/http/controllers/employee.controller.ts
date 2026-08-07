@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
-import type { GetEmployeeById } from '../../../application/use-cases/get-employee-by-id.ts';
-import type { RegisterEmployee } from '../../../application/use-cases/register-employee.ts';
+import type { GetEmployeeById } from '../../../application/use-cases/get-employee-by-id.use-case.ts';
+import type { RegisterEmployee } from '../../../application/use-cases/register-employee.use-case.ts';
 import { createEmployeeSchema, employeeIdSchema } from '../schemas/employee.schema.ts';
 
 export class EmployeeController {
