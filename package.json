@@ -1,14 +1,16 @@
 {
   "name": "ms-employees",
   "version": "1.0.0",
-  "description": "microservice for employee management",
-  "main": "index.js",
+  "description": "Microservicio para el registro y consulta de empleados",
+  "main": "dist/server.js",
   "scripts": {
     "start": "node src/server.ts",
     "dev": "node --watch src/server.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --project tsconfig.test.json",
     "build": "tsc",
-    "start:dist": "node dist/server.js"
+    "start:dist": "node dist/server.js",
+    "test": "node --test",
+    "test:coverage": "node --test --experimental-test-coverage"
   },
   "repository": {
     "type": "git",
@@ -24,10 +26,14 @@
   "homepage": "https://github.com/Microservicios-RHM/ms-employees#readme",
   "dependencies": {
     "express": "^5.2.1",
-    "typescript": "^7.0.2"
+    "helmet": "^8.3.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
-    "@types/node": "^26.1.2"
+    "@types/node": "^26.1.2",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.2.2",
+    "typescript": "^7.0.2"
   }
 }
