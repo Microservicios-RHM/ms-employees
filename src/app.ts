@@ -1,18 +1,23 @@
 import express from 'express';
 import helmet from 'helmet';
+import type { Logger } from 'pino';
 import { RegisterEmployee } from './application/use-cases/register-employee.use-case.ts';
 import { GetEmployeeById } from './application/use-cases/get-employee-by-id.use-case.ts';
 import type { EmployeeRepository } from './domain/repositories/employee.repository.ts';
 import { createEmployeeRouter } from './infrastructure/http/routes/employee.routes.ts';
 import healthRouter from './infrastructure/http/routes/health.routes.ts';
 import { errorHandler } from './infrastructure/http/middlewares/error-handler.middleware.ts';
+import documentationRouter from './infrastructure/http/routes/documentation.routes.ts';
+import { createRequestLogger } from './infrastructure/http/middlewares/request-logger.middleware.ts';
 
-export function createApp(repository: EmployeeRepository) {
+export function createApp(repository: EmployeeRepository, logger: Logger) {
   const app = express();
   const registerEmployee = new RegisterEmployee(repository);
   const getEmployeeById = new GetEmployeeById(repository);
 
   app.disable('x-powered-by');
+  app.use(createRequestLogger(logger));
+  app.use('/', documentationRouter);
   app.use(helmet());
   app.use(express.json({ limit: '1mb' }));
 

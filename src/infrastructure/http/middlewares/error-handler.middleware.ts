@@ -2,7 +2,7 @@ import type { ErrorRequestHandler } from 'express';
 import { ZodError } from 'zod';
 import { AppError } from '../../../domain/errors/app.error.ts';
 
-export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
+export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
   if (error instanceof ZodError) {
     res.status(400).json({
       error: 'Datos de entrada inválidos',
@@ -29,6 +29,6 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     return;
   }
 
-  console.error('Error no controlado:', error);
+  req.log.error({ err: error }, 'Unhandled request error');
   res.status(500).json({ error: 'Error interno del servidor', code: 'INTERNAL_ERROR' });
 };

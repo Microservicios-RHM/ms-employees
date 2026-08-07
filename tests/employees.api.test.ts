@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import request from 'supertest';
+import pino from 'pino';
 import { createApp } from '../src/app.ts';
 import type { Employee } from '../src/domain/entities/employee.entity.ts';
 import type { EmployeeRepository } from '../src/domain/repositories/employee.repository.ts';
@@ -26,7 +27,8 @@ class TestEmployeeRepository implements EmployeeRepository {
   }
 }
 
-const createTestApp = () => createApp(new TestEmployeeRepository());
+const testLogger = pino({ level: 'silent' });
+const createTestApp = () => createApp(new TestEmployeeRepository(), testLogger);
 
 const employee = {
   id: 'E001',
@@ -117,5 +119,30 @@ describe('API de empleados', () => {
   test('expone el health check', async () => {
     const response = await request(createTestApp()).get('/health').expect(200);
     assert.deepEqual(response.body, { status: 'UP' });
+    assert.match(response.headers['x-request-id'], /^[0-9a-f-]{36}$/i);
+  });
+
+  test('conserva el requestId recibido para correlación entre servicios', async () => {
+    const response = await request(createTestApp())
+      .get('/health')
+      .set('X-Request-Id', 'onboarding-request-123')
+      .expect(200);
+
+    assert.equal(response.headers['x-request-id'], 'onboarding-request-123');
+  });
+
+  test('publica el documento OpenAPI 3.1', async () => {
+    const response = await request(createTestApp()).get('/openapi.json').expect(200);
+
+    assert.equal(response.body.openapi, '3.1.0');
+    assert.equal(response.body.info.title, 'Microservicio de empleados');
+    assert.ok(response.body.paths['/empleados'].post);
+    assert.ok(response.body.paths['/empleados/{id}'].get);
+    assert.ok(response.body.components.schemas.Employee);
+  });
+
+  test('expone Swagger UI', async () => {
+    const response = await request(createTestApp()).get('/docs/').expect(200);
+    assert.match(response.text, /Swagger UI/);
   });
 });

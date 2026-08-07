@@ -63,6 +63,42 @@ Health check:
 curl -i http://localhost:8080/health
 ```
 
+Documentación interactiva y contrato OpenAPI:
+
+```text
+Swagger UI:       http://localhost:8080/docs
+Documento JSON:  http://localhost:8080/openapi.json
+```
+
+Swagger UI permite inspeccionar schemas, respuestas y ejemplos, y ejecutar peticiones directamente
+contra el servidor actual.
+
+## Logs y trazabilidad
+
+Cada petición genera un log al finalizar con método, URL, código HTTP, duración y un identificador
+de correlación. El mismo valor se devuelve en la cabecera `X-Request-Id`. Si otro microservicio envía
+esa cabecera, `ms-employees` la conserva para facilitar el seguimiento de una operación distribuida.
+
+Configuración disponible:
+
+```env
+LOG_LEVEL=debug
+LOG_PRETTY=true
+```
+
+En desarrollo, `LOG_PRETTY=true` produce una consola legible y coloreada. En Docker y producción se
+usa `LOG_PRETTY=false`, generando una línea JSON por evento para que Docker, Loki, ELK u otra
+plataforma pueda recolectarla correctamente.
+
+```bash
+docker logs -f ms-employees
+```
+
+No se registran cuerpos de solicitudes ni datos personales de empleados. Las cabeceras de
+autorización, cookies y campos de contraseña están configurados para ser censurados.
+El endpoint `/health` se excluye del access log para evitar ruido producido por los health checks
+periódicos de Docker.
+
 Registrar un empleado:
 
 ```bash
@@ -160,6 +196,8 @@ employee.controller.ts
 employee.routes.ts
 employee.schema.ts
 error-handler.middleware.ts
+openapi.document.ts
+documentation.routes.ts
 environment.config.ts
 001-create-employees-table.migration.ts
 migration.runner.ts

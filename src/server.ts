@@ -4,32 +4,60 @@ import { loadConfig } from './config/environment.config.ts';
 import { createPostgresPool } from './infrastructure/persistence/postgres/postgres.client.ts';
 import { PostgresEmployeeRepository } from './infrastructure/persistence/postgres/postgres-employee.repository.ts';
 import { runMigrations } from './infrastructure/persistence/postgres/migrations/migration.runner.ts';
+import { createLogger } from './infrastructure/logging/pino.logger.ts';
 
 const config = loadConfig();
+const logger = createLogger(config.logging);
 const pool = createPostgresPool(config.database);
-await runMigrations(pool, config.database.schema);
 
-const repository = new PostgresEmployeeRepository(pool, config.database.schema);
-const app = createApp(repository);
-const port = config.port;
-const server = http.createServer(app);
+async function bootstrap(): Promise<void> {
+  logger.info(
+    {
+      database: {
+        host: config.database.host,
+        port: config.database.port,
+        name: config.database.database,
+        schema: config.database.schema,
+        user: config.database.user,
+      },
+    },
+    'Connecting to PostgreSQL',
+  );
 
-server.listen(port, '0.0.0.0', () => {
-  console.log(`Servidor de empleados escuchando en http://localhost:${port}`);
-});
+  const appliedMigrations = await runMigrations(pool, config.database.schema);
+  for (const migration of appliedMigrations) {
+    logger.info({ migration }, 'Database migration applied');
+  }
+  logger.info('PostgreSQL connection ready');
 
-function shutdown(signal: string): void {
-  console.log(`${signal} recibido. Cerrando el servidor...`);
-  server.close(async (error) => {
-    if (error) {
-      console.error('No fue posible cerrar el servidor correctamente.', error);
-      process.exit(1);
-    }
-    await pool.end();
-    process.exit(0);
+  const repository = new PostgresEmployeeRepository(pool, config.database.schema);
+  const app = createApp(repository, logger);
+  const server = http.createServer(app);
+
+  server.listen(config.port, '0.0.0.0', () => {
+    logger.info({ port: config.port }, 'Employee service started');
   });
+
+  const shutdown = (signal: string): void => {
+    logger.info({ signal }, 'Graceful shutdown started');
+    server.close(async (error) => {
+      if (error) {
+        logger.error({ err: error }, 'HTTP server shutdown failed');
+        process.exitCode = 1;
+      }
+      await pool.end();
+      logger.info('Employee service stopped');
+      process.exit();
+    });
+  };
+
+  for (const signal of ['SIGTERM', 'SIGINT']) {
+    process.once(signal, () => shutdown(signal));
+  }
 }
 
-for (const signal of ['SIGTERM', 'SIGINT']) {
-  process.once(signal, () => shutdown(signal));
-}
+bootstrap().catch(async (error: unknown) => {
+  logger.fatal({ err: error }, 'Employee service failed to start');
+  await pool.end().catch(() => undefined);
+  process.exit(1);
+});

@@ -8,6 +8,9 @@ if (existsSync(envPath)) {
 }
 
 const environmentSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  LOG_PRETTY: z.enum(['true', 'false']).default('false'),
   PORT: z.coerce.number().int().min(1).max(65535).default(8080),
   DB_HOST: z.string().trim().min(1),
   DB_PORT: z.coerce.number().int().min(1).max(65535).default(5432),
@@ -33,6 +36,13 @@ export interface DatabaseConfig {
 export interface AppConfig {
   readonly port: number;
   readonly database: DatabaseConfig;
+  readonly logging: LoggingConfig;
+}
+
+export interface LoggingConfig {
+  readonly environment: 'development' | 'test' | 'production';
+  readonly level: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
+  readonly pretty: boolean;
 }
 
 export function loadConfig(): AppConfig {
@@ -45,6 +55,11 @@ export function loadConfig(): AppConfig {
   const env = result.data;
   return {
     port: env.PORT,
+    logging: {
+      environment: env.NODE_ENV,
+      level: env.LOG_LEVEL,
+      pretty: env.LOG_PRETTY === 'true',
+    },
     database: {
       host: env.DB_HOST,
       port: env.DB_PORT,

@@ -7,8 +7,9 @@ import { createEmployeesMigration } from './001-create-employees-table.migration
 
 const migrations = [createEmployeesMigration];
 
-export async function runMigrations(pool: pg.Pool, schema: string): Promise<void> {
+export async function runMigrations(pool: pg.Pool, schema: string): Promise<string[]> {
   const client = await pool.connect();
+  const appliedMigrations: string[] = [];
   try {
     await client.query('SELECT pg_advisory_lock($1)', [728_401]);
     await client.query(`
@@ -34,7 +35,7 @@ export async function runMigrations(pool: pg.Pool, schema: string): Promise<void
           [migration.version, migration.name],
         );
         await client.query('COMMIT');
-        console.log(`Migración aplicada: ${migration.version} - ${migration.name}`);
+        appliedMigrations.push(`${migration.version} - ${migration.name}`);
       } catch (error) {
         await client.query('ROLLBACK');
         throw error;
@@ -44,13 +45,22 @@ export async function runMigrations(pool: pg.Pool, schema: string): Promise<void
     await client.query('SELECT pg_advisory_unlock($1)', [728_401]);
     client.release();
   }
+  return appliedMigrations;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const config = loadConfig();
+  const { createLogger } = await import('../../../logging/pino.logger.ts');
+  const logger = createLogger(config.logging);
   const pool = createPostgresPool(config.database);
   try {
-    await runMigrations(pool, config.database.schema);
+    const appliedMigrations = await runMigrations(pool, config.database.schema);
+    if (appliedMigrations.length === 0) {
+      logger.info('Database schema is up to date');
+    }
+    for (const migration of appliedMigrations) {
+      logger.info({ migration }, 'Database migration applied');
+    }
   } finally {
     await pool.end();
   }
