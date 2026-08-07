@@ -1,0 +1,33 @@
+{
+  "name": "ms-employees",
+  "version": "1.0.0",
+  "description": "microservice for employee management",
+  "main": "index.js",
+  "scripts": {
+    "start": "node src/server.ts",
+    "dev": "node --watch src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "start:dist": "node dist/server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Microservicios-RHM/ms-employees.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/Microservicios-RHM/ms-employees/issues"
+  },
+  "homepage": "https://github.com/Microservicios-RHM/ms-employees#readme",
+  "dependencies": {
+    "express": "^5.2.1",
+    "typescript": "^7.0.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.1.2"
+  }
+}
