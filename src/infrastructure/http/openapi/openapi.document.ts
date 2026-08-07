@@ -1,3 +1,6 @@
+import { RESPONSE_MESSAGES } from '../../../shared/constants/response-messages.constants.ts';
+import { ERROR_CODES } from '../../../shared/constants/error-codes.constants.ts';
+
 const employeeProperties = {
   id: { type: 'string', example: 'E001' },
   nombre: { type: 'string', example: 'Juan' },
@@ -47,8 +50,12 @@ export const openApiDocument = {
             description: 'El proceso está activo.',
             content: {
               'application/json': {
-                schema: { $ref: '#/components/schemas/Health' },
-                example: { status: 'UP' },
+                schema: { $ref: '#/components/schemas/HealthResponse' },
+                example: {
+                  success: true,
+                  message: RESPONSE_MESSAGES.service.available,
+                  data: { status: 'UP' },
+                },
               },
             },
           },
@@ -72,9 +79,9 @@ export const openApiDocument = {
         },
         responses: {
           '200': {
-            description: 'Empleado registrado correctamente.',
+            description: `${RESPONSE_MESSAGES.employee.registered}.`,
             content: {
-              'application/json': { schema: { $ref: '#/components/schemas/Employee' } },
+              'application/json': { schema: { $ref: '#/components/schemas/EmployeeResponse' } },
             },
           },
           '400': {
@@ -113,15 +120,20 @@ export const openApiDocument = {
           '200': {
             description: 'Empleado encontrado.',
             content: {
-              'application/json': { schema: { $ref: '#/components/schemas/Employee' } },
+              'application/json': { schema: { $ref: '#/components/schemas/EmployeeResponse' } },
             },
           },
           '404': {
             description: 'El empleado solicitado no existe.',
             content: {
-              'text/plain': {
-                schema: { type: 'string' },
-                example: 'El empleado con id E999 no existe',
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+                example: {
+                  success: false,
+                  message: RESPONSE_MESSAGES.employee.notFound('E999'),
+                  data: null,
+                  error: { code: ERROR_CODES.EMPLOYEE_NOT_FOUND },
+                },
               },
             },
           },
@@ -138,6 +150,16 @@ export const openApiDocument = {
         required: ['status'],
         properties: { status: { type: 'string', enum: ['UP'] } },
       },
+      HealthResponse: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['success', 'message', 'data'],
+        properties: {
+          success: { type: 'boolean', const: true },
+          message: { type: 'string', example: RESPONSE_MESSAGES.service.available },
+          data: { $ref: '#/components/schemas/Health' },
+        },
+      },
       Employee: {
         type: 'object',
         additionalProperties: false,
@@ -145,6 +167,16 @@ export const openApiDocument = {
         properties: {
           ...employeeProperties,
           estado: { type: 'string', enum: ['ACTIVO', 'EN_VACACIONES', 'RETIRADO'] },
+        },
+      },
+      EmployeeResponse: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['success', 'message', 'data'],
+        properties: {
+          success: { type: 'boolean', const: true },
+          message: { type: 'string', example: RESPONSE_MESSAGES.employee.registered },
+          data: { $ref: '#/components/schemas/Employee' },
         },
       },
       CreateEmployeeRequest: {
@@ -163,28 +195,47 @@ export const openApiDocument = {
       ErrorResponse: {
         type: 'object',
         additionalProperties: false,
-        required: ['error', 'code'],
+        required: ['success', 'message', 'data', 'error'],
         properties: {
-          error: { type: 'string', example: 'El email juan.perez@empresa.com ya está registrado' },
-          code: { type: 'string', example: 'DUPLICATE_EMAIL' },
+          success: { type: 'boolean', const: false },
+          message: {
+            type: 'string',
+            example: RESPONSE_MESSAGES.employee.duplicateEmail('juan.perez@empresa.com'),
+          },
+          data: { type: 'null' },
+          error: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['code'],
+            properties: { code: { type: 'string', example: ERROR_CODES.DUPLICATE_EMAIL } },
+          },
         },
       },
       ValidationErrorResponse: {
         type: 'object',
         additionalProperties: false,
-        required: ['error', 'code', 'details'],
+        required: ['success', 'message', 'data', 'error'],
         properties: {
-          error: { type: 'string', example: 'Datos de entrada inválidos' },
-          code: { type: 'string', enum: ['VALIDATION_ERROR'] },
-          details: {
-            type: 'array',
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              required: ['field', 'message'],
-              properties: {
-                field: { type: 'string', example: 'email' },
-                message: { type: 'string', example: 'email debe tener un formato válido' },
+          success: { type: 'boolean', const: false },
+          message: { type: 'string', example: RESPONSE_MESSAGES.validation.invalidInput },
+          data: { type: 'null' },
+          error: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['code', 'details'],
+            properties: {
+              code: { type: 'string', enum: [ERROR_CODES.VALIDATION_ERROR] },
+              details: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['field', 'message'],
+                  properties: {
+                    field: { type: 'string', example: 'email' },
+                    message: { type: 'string', example: RESPONSE_MESSAGES.validation.invalidEmail },
+                  },
+                },
               },
             },
           },
@@ -197,7 +248,12 @@ export const openApiDocument = {
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/ErrorResponse' },
-            example: { error: 'Error interno del servidor', code: 'INTERNAL_ERROR' },
+            example: {
+              success: false,
+              message: RESPONSE_MESSAGES.server.internalError,
+              data: null,
+              error: { code: ERROR_CODES.INTERNAL_ERROR },
+            },
           },
         },
       },

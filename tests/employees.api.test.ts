@@ -48,15 +48,26 @@ describe('API de empleados', () => {
     const app = createTestApp();
 
     const created = await request(app).post('/empleados').send(employee).expect(200);
-    assert.deepEqual(created.body, employee);
+    assert.deepEqual(created.body, {
+      success: true,
+      message: 'Empleado registrado correctamente',
+      data: employee,
+    });
 
     const found = await request(app).get('/empleados/E001').expect(200);
-    assert.deepEqual(found.body, employee);
+    assert.deepEqual(found.body, {
+      success: true,
+      message: 'Empleado consultado correctamente',
+      data: employee,
+    });
   });
 
   test('responde el mensaje exacto cuando el empleado no existe', async () => {
     const response = await request(createTestApp()).get('/empleados/E999').expect(404);
-    assert.equal(response.text, 'El empleado con id E999 no existe');
+    assert.equal(response.body.success, false);
+    assert.equal(response.body.message, 'El empleado con id E999 no existe');
+    assert.equal(response.body.data, null);
+    assert.equal(response.body.error.code, 'EMPLOYEE_NOT_FOUND');
   });
 
   test('responde el mensaje exacto para rutas o métodos no soportados', async () => {
@@ -64,8 +75,10 @@ describe('API de empleados', () => {
     const unknownRoute = await request(app).get('/otra-ruta').expect(404);
     const unsupportedMethod = await request(app).put('/empleados/E001').expect(404);
 
-    assert.equal(unknownRoute.text, 'Recurso no encontrado');
-    assert.equal(unsupportedMethod.text, 'Recurso no encontrado');
+    assert.equal(unknownRoute.body.message, 'Recurso no encontrado');
+    assert.equal(unknownRoute.body.error.code, 'RESOURCE_NOT_FOUND');
+    assert.equal(unsupportedMethod.body.message, 'Recurso no encontrado');
+    assert.equal(unsupportedMethod.body.error.code, 'RESOURCE_NOT_FOUND');
   });
 
   test('rechaza emails duplicados sin distinguir mayúsculas', async () => {
@@ -77,8 +90,8 @@ describe('API de empleados', () => {
       .send({ ...employee, id: 'E002', email: 'JUAN.PEREZ@EMPRESA.COM', numeroEmpleado: 'EMP-2026-002' })
       .expect(400);
 
-    assert.equal(response.body.code, 'DUPLICATE_EMAIL');
-    assert.match(response.body.error, /ya está registrado/);
+    assert.equal(response.body.error.code, 'DUPLICATE_EMAIL');
+    assert.match(response.body.message, /ya está registrado/);
   });
 
   test('rechaza números de empleado duplicados', async () => {
@@ -90,7 +103,7 @@ describe('API de empleados', () => {
       .send({ ...employee, id: 'E002', email: 'otro@empresa.com' })
       .expect(400);
 
-    assert.equal(response.body.code, 'DUPLICATE_EMPLOYEE_NUMBER');
+    assert.equal(response.body.error.code, 'DUPLICATE_EMPLOYEE_NUMBER');
   });
 
   test('valida el modelo canónico y solo permite estado ACTIVO', async () => {
@@ -99,9 +112,9 @@ describe('API de empleados', () => {
       .send({ ...employee, email: 'correo-invalido', estado: 'RETIRADO', cargo: '' })
       .expect(400);
 
-    assert.equal(response.body.code, 'VALIDATION_ERROR');
+    assert.equal(response.body.error.code, 'VALIDATION_ERROR');
     assert.deepEqual(
-      response.body.details.map((detail: { field: string }) => detail.field),
+      response.body.error.details.map((detail: { field: string }) => detail.field),
       ['email', 'cargo', 'estado'],
     );
   });
@@ -113,12 +126,16 @@ describe('API de empleados', () => {
       .send('{')
       .expect(400);
 
-    assert.equal(response.body.code, 'INVALID_JSON');
+    assert.equal(response.body.error.code, 'INVALID_JSON');
   });
 
   test('expone el health check', async () => {
     const response = await request(createTestApp()).get('/health').expect(200);
-    assert.deepEqual(response.body, { status: 'UP' });
+    assert.deepEqual(response.body, {
+      success: true,
+      message: 'Servicio disponible',
+      data: { status: 'UP' },
+    });
     assert.match(response.headers['x-request-id'], /^[0-9a-f-]{36}$/i);
   });
 
@@ -139,6 +156,8 @@ describe('API de empleados', () => {
     assert.ok(response.body.paths['/empleados'].post);
     assert.ok(response.body.paths['/empleados/{id}'].get);
     assert.ok(response.body.components.schemas.Employee);
+    assert.equal(response.body.components.schemas.EmployeeResponse.properties.success.const, true);
+    assert.equal(response.body.components.schemas.ErrorResponse.properties.success.const, false);
   });
 
   test('expone Swagger UI', async () => {

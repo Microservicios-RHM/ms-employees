@@ -1,34 +1,46 @@
 import type { ErrorRequestHandler } from 'express';
 import { ZodError } from 'zod';
 import { AppError } from '../../../domain/errors/app.error.ts';
+import { sendError } from '../responses/api.response.ts';
+import { HTTP_STATUS } from '../../../shared/constants/http-status.constants.ts';
+import { ERROR_CODES } from '../../../shared/constants/error-codes.constants.ts';
+import { RESPONSE_MESSAGES } from '../../../shared/constants/response-messages.constants.ts';
 
 export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
   if (error instanceof ZodError) {
-    res.status(400).json({
-      error: 'Datos de entrada inválidos',
-      code: 'VALIDATION_ERROR',
-      details: error.issues.map((issue) => ({
+    sendError(
+      res,
+      HTTP_STATUS.BAD_REQUEST,
+      RESPONSE_MESSAGES.validation.invalidInput,
+      ERROR_CODES.VALIDATION_ERROR,
+      error.issues.map((issue) => ({
         field: issue.path.join('.'),
         message: issue.message,
       })),
-    });
+    );
     return;
   }
 
   if (error instanceof AppError) {
-    if (error.code === 'EMPLOYEE_NOT_FOUND') {
-      res.status(error.statusCode).type('text/plain').send(error.message);
-      return;
-    }
-    res.status(error.statusCode).json({ error: error.message, code: error.code });
+    sendError(res, error.statusCode, error.message, error.code);
     return;
   }
 
   if (error instanceof SyntaxError && 'body' in error) {
-    res.status(400).json({ error: 'El cuerpo no es JSON válido', code: 'INVALID_JSON' });
+    sendError(
+      res,
+      HTTP_STATUS.BAD_REQUEST,
+      RESPONSE_MESSAGES.validation.invalidJson,
+      ERROR_CODES.INVALID_JSON,
+    );
     return;
   }
 
   req.log.error({ err: error }, 'Unhandled request error');
-  res.status(500).json({ error: 'Error interno del servidor', code: 'INTERNAL_ERROR' });
+  sendError(
+    res,
+    HTTP_STATUS.INTERNAL_SERVER_ERROR,
+    RESPONSE_MESSAGES.server.internalError,
+    ERROR_CODES.INTERNAL_ERROR,
+  );
 };

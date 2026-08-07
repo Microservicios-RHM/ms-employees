@@ -73,6 +73,56 @@ Documento JSON:  http://localhost:8080/openapi.json
 Swagger UI permite inspeccionar schemas, respuestas y ejemplos, y ejecutar peticiones directamente
 contra el servidor actual.
 
+## Contrato general de respuestas
+
+Todos los endpoints JSON de la aplicación usan un envelope consistente. Una respuesta exitosa tiene
+la siguiente estructura:
+
+```json
+{
+  "success": true,
+  "message": "Empleado registrado correctamente",
+  "data": {
+    "id": "E001"
+  }
+}
+```
+
+Los errores mantienen los mismos campos base y agregan información técnica estable dentro de
+`error`. Los clientes deben tomar decisiones usando `error.code`, no comparando el texto de
+`message`:
+
+```json
+{
+  "success": false,
+  "message": "El empleado con id E999 no existe",
+  "data": null,
+  "error": {
+    "code": "EMPLOYEE_NOT_FOUND"
+  }
+}
+```
+
+Los errores de validación incluyen además `error.details`, con el campo y mensaje correspondiente.
+La creación de estas respuestas está centralizada y tipada para evitar formatos diferentes entre
+controladores.
+
+Los mensajes, códigos de error y estados HTTP tampoco se escriben directamente en controladores o
+casos de uso. Se administran desde catálogos compartidos:
+
+```text
+src/shared/constants/
+├── response-messages.constants.ts
+├── error-codes.constants.ts
+└── http-status.constants.ts
+```
+
+Los mensajes dinámicos se generan mediante funciones del catálogo, por ejemplo
+`RESPONSE_MESSAGES.employee.notFound(id)`.
+
+`/openapi.json` y `/docs` son excepciones técnicas: deben entregar OpenAPI puro y recursos HTML de
+Swagger respectivamente para conservar compatibilidad con sus herramientas.
+
 ## Logs y trazabilidad
 
 Cada petición genera un log al finalizar con método, URL, código HTTP, duración y un identificador

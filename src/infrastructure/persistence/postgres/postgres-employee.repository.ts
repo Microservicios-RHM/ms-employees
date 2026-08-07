@@ -2,6 +2,9 @@ import type pg from 'pg';
 import type { Employee, EmployeeStatus } from '../../../domain/entities/employee.entity.ts';
 import { AppError } from '../../../domain/errors/app.error.ts';
 import type { EmployeeRepository } from '../../../domain/repositories/employee.repository.ts';
+import { HTTP_STATUS } from '../../../shared/constants/http-status.constants.ts';
+import { ERROR_CODES } from '../../../shared/constants/error-codes.constants.ts';
+import { RESPONSE_MESSAGES } from '../../../shared/constants/response-messages.constants.ts';
 
 interface EmployeeRow {
   id: string;
@@ -78,16 +81,24 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
     const constraint = 'constraint' in error ? String(error.constraint) : '';
 
     if (constraint.includes('email')) {
-      throw new AppError(`El email ${employee.email} ya está registrado`, 400, 'DUPLICATE_EMAIL');
+      throw new AppError(
+        RESPONSE_MESSAGES.employee.duplicateEmail(employee.email),
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_CODES.DUPLICATE_EMAIL,
+      );
     }
     if (constraint.includes('numero_empleado')) {
       throw new AppError(
-        `El número de empleado ${employee.numeroEmpleado} ya está registrado`,
-        400,
-        'DUPLICATE_EMPLOYEE_NUMBER',
+        RESPONSE_MESSAGES.employee.duplicateEmployeeNumber(employee.numeroEmpleado),
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_CODES.DUPLICATE_EMPLOYEE_NUMBER,
       );
     }
-    throw new AppError(`El empleado con id ${employee.id} ya existe`, 400, 'DUPLICATE_ID');
+    throw new AppError(
+      RESPONSE_MESSAGES.employee.duplicateId(employee.id),
+      HTTP_STATUS.BAD_REQUEST,
+      ERROR_CODES.DUPLICATE_ID,
+    );
   }
 
   private toDomain(row: EmployeeRow): Employee {

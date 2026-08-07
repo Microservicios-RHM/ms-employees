@@ -9,6 +9,10 @@ import healthRouter from './infrastructure/http/routes/health.routes.ts';
 import { errorHandler } from './infrastructure/http/middlewares/error-handler.middleware.ts';
 import documentationRouter from './infrastructure/http/routes/documentation.routes.ts';
 import { createRequestLogger } from './infrastructure/http/middlewares/request-logger.middleware.ts';
+import { sendError } from './infrastructure/http/responses/api.response.ts';
+import { HTTP_STATUS } from './shared/constants/http-status.constants.ts';
+import { ERROR_CODES } from './shared/constants/error-codes.constants.ts';
+import { RESPONSE_MESSAGES } from './shared/constants/response-messages.constants.ts';
 
 export function createApp(repository: EmployeeRepository, logger: Logger) {
   const app = express();
@@ -25,7 +29,12 @@ export function createApp(repository: EmployeeRepository, logger: Logger) {
   app.use('/empleados', createEmployeeRouter(registerEmployee, getEmployeeById));
 
   app.use((_req, res) => {
-    res.status(404).type('text/plain').send('Recurso no encontrado');
+    sendError(
+      res,
+      HTTP_STATUS.NOT_FOUND,
+      RESPONSE_MESSAGES.resource.notFound,
+      ERROR_CODES.RESOURCE_NOT_FOUND,
+    );
   });
   app.use(errorHandler);
 
