@@ -20,6 +20,8 @@ const environmentSchema = z.object({
   DB_PASSWORD: z.string().min(1),
   DB_SSL: z.enum(['true', 'false']).default('false'),
   DB_POOL_MAX: z.coerce.number().int().min(1).max(50).default(10),
+  DB_CONNECT_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(5),
+  DB_CONNECT_RETRY_DELAY_MS: z.coerce.number().int().min(100).max(30_000).default(1000),
 });
 
 export interface DatabaseConfig {
@@ -31,6 +33,8 @@ export interface DatabaseConfig {
   readonly password: string;
   readonly ssl: boolean;
   readonly poolMax: number;
+  readonly connectMaxAttempts: number;
+  readonly connectRetryDelayMs: number;
 }
 
 export interface AppConfig {
@@ -69,6 +73,8 @@ export function loadConfig(): AppConfig {
       password: env.DB_PASSWORD,
       ssl: env.DB_SSL === 'true',
       poolMax: env.DB_POOL_MAX,
+      connectMaxAttempts: env.DB_CONNECT_MAX_ATTEMPTS,
+      connectRetryDelayMs: env.DB_CONNECT_RETRY_DELAY_MS,
     },
   };
 }

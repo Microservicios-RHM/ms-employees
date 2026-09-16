@@ -28,6 +28,13 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
     this.table = `"${schema}"."employees"`;
   }
 
+  async findAll(): Promise<Employee[]> {
+    const result = await this.pool.query<EmployeeRow>(
+      `SELECT * FROM ${this.table} ORDER BY id ASC`,
+    );
+    return result.rows.map((row) => this.toDomain(row));
+  }
+
   async findById(id: string): Promise<Employee | undefined> {
     const result = await this.pool.query<EmployeeRow>(`SELECT * FROM ${this.table} WHERE id = $1`, [id]);
     return result.rows[0] ? this.toDomain(result.rows[0]) : undefined;

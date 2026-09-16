@@ -1,7 +1,8 @@
 # Microservicio de empleados
 
 Servicio HTTP para registrar y consultar empleados, construido con Node.js, TypeScript, Express y
-PostgreSQL. Los registros se almacenan exclusivamente en el schema `employees` de la base `rhm`.
+PostgreSQL. Los registros se almacenan exclusivamente en el schema `employees` de la base
+independiente `employees_db`.
 
 ## Requisitos
 
@@ -23,7 +24,7 @@ Variables principales:
 ```env
 DB_HOST=localhost
 DB_PORT=5433
-DB_NAME=rhm
+DB_NAME=employees_db
 DB_SCHEMA=employees
 DB_USER=employees_service
 DB_PASSWORD=la_clave_configurada_en_la_infraestructura
@@ -163,8 +164,7 @@ curl -i -X POST http://localhost:8080/empleados \
     "cargo":"Desarrollador Senior",
     "area":"Tecnología",
     "departamentoId":"IT",
-    "fechaIngreso":"2026-02-10",
-    "estado":"ACTIVO"
+    "fechaIngreso":"2026-02-10"
   }'
 ```
 
@@ -173,6 +173,7 @@ Consultar por identificador:
 ```bash
 curl -i http://localhost:8080/empleados/E001
 curl -i http://localhost:8080/empleados/E999
+curl -i http://localhost:8080/empleados
 ```
 
 ## Persistencia
@@ -191,30 +192,36 @@ El código realiza validaciones descriptivas y PostgreSQL mantiene las restricci
 final ante solicitudes concurrentes. El servicio utiliza un pool de conexiones y consultas
 parametrizadas.
 
-## Docker
+La base `employees_db`, su usuario y su volumen pertenecen exclusivamente a este microservicio.
+Ningún servicio futuro debe consultar sus tablas directamente; cualquier interacción se realizará
+mediante el contrato HTTP de empleados.
 
-La red `rhm-network` se crea al levantar el repositorio de infraestructura. Preparar las variables
-para el contenedor:
+La unicidad se garantiza en dos capas: consulta previa para entregar mensajes descriptivos y
+restricciones `UNIQUE` en PostgreSQL para cerrar la condición de carrera entre peticiones
+concurrentes.
+
+`POST /empleados` responde `201 Created`. El estado no se recibe desde el cliente: el caso de uso lo
+asigna siempre como `ACTIVO`, según la regla del Reto 2.
+
+## Docker Compose
+
+El despliegue recomendado se ejecuta desde `rhm-database-infrastructure`, que crea la base exclusiva,
+el volumen, la red y este servicio:
 
 ```bash
-cp .env.docker.example .env.docker
+cd ../rhm-database-infrastructure
+docker compose up --build
 ```
 
-Actualizar la contraseña y ejecutar:
+Para verificar:
 
 ```bash
-docker build -t servidor-empleados .
-docker run --rm \
-  --name ms-employees \
-  --network rhm-network \
-  --env-file .env.docker \
-  -p 8080:8080 \
-  servidor-empleados
+docker compose ps
 ```
 
-Dentro de Docker, PostgreSQL se resuelve como `postgres:5432`; `localhost:5433` solamente se usa
-cuando Node se ejecuta directamente en Windows. La imagen aplica migraciones antes de iniciar el
-servidor, usa construcción multietapa y ejecuta Node con un usuario sin privilegios.
+Dentro de Docker, PostgreSQL se resuelve como `database-empleados:5432`; `localhost:5433` se usa
+solo desde Windows. Compose espera a que PostgreSQL esté `healthy`. El servicio aplica migraciones
+antes de iniciar, usa una imagen multietapa y ejecuta Node con un usuario sin privilegios.
 
 ## Arquitectura
 

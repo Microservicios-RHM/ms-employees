@@ -5,6 +5,7 @@ import { createPostgresPool } from './infrastructure/persistence/postgres/postgr
 import { PostgresEmployeeRepository } from './infrastructure/persistence/postgres/postgres-employee.repository.ts';
 import { runMigrations } from './infrastructure/persistence/postgres/migrations/migration.runner.ts';
 import { createLogger } from './infrastructure/logging/pino.logger.ts';
+import { waitForPostgres } from './infrastructure/persistence/postgres/postgres-readiness.ts';
 
 const config = loadConfig();
 const logger = createLogger(config.logging);
@@ -24,6 +25,7 @@ async function bootstrap(): Promise<void> {
     'Connecting to PostgreSQL',
   );
 
+  await waitForPostgres(pool, config.database, logger);
   const appliedMigrations = await runMigrations(pool, config.database.schema);
   for (const migration of appliedMigrations) {
     logger.info({ migration }, 'Database migration applied');

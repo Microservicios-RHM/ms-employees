@@ -15,4 +15,4 @@ export interface Employee {
   readonly estado: EmployeeStatus;
 }
 
-export type NewEmployee = Employee;
+export type NewEmployee = Omit<Employee, 'estado'>;

@@ -2,6 +2,7 @@ export const RESPONSE_MESSAGES = {
   employee: {
     registered: 'Empleado registrado correctamente',
     retrieved: 'Empleado consultado correctamente',
+    listed: 'Empleados consultados correctamente',
     notFound: (id: string) => `El empleado con id ${id} no existe`,
     duplicateId: (id: string) => `El empleado con id ${id} ya existe`,
     duplicateEmail: (email: string) => `El email ${email} ya está registrado`,

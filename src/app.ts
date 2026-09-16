@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import type { Logger } from 'pino';
 import { RegisterEmployee } from './application/use-cases/register-employee.use-case.ts';
 import { GetEmployeeById } from './application/use-cases/get-employee-by-id.use-case.ts';
+import { ListEmployees } from './application/use-cases/list-employees.use-case.ts';
 import type { EmployeeRepository } from './domain/repositories/employee.repository.ts';
 import { createEmployeeRouter } from './infrastructure/http/routes/employee.routes.ts';
 import healthRouter from './infrastructure/http/routes/health.routes.ts';
@@ -18,6 +19,7 @@ export function createApp(repository: EmployeeRepository, logger: Logger) {
   const app = express();
   const registerEmployee = new RegisterEmployee(repository);
   const getEmployeeById = new GetEmployeeById(repository);
+  const listEmployees = new ListEmployees(repository);
 
   app.disable('x-powered-by');
   app.use(createRequestLogger(logger));
@@ -26,7 +28,7 @@ export function createApp(repository: EmployeeRepository, logger: Logger) {
   app.use(express.json({ limit: '1mb' }));
 
   app.use('/', healthRouter);
-  app.use('/empleados', createEmployeeRouter(registerEmployee, getEmployeeById));
+  app.use('/empleados', createEmployeeRouter(registerEmployee, getEmployeeById, listEmployees));
 
   app.use((_req, res) => {
     sendError(

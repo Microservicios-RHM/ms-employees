@@ -18,15 +18,9 @@ export class RegisterEmployee {
       id: input.id.trim(),
       email: input.email.trim().toLowerCase(),
       numeroEmpleado: input.numeroEmpleado.trim(),
+      estado: 'ACTIVO',
     };
 
-    if (await this.repository.findById(employee.id)) {
-      throw new AppError(
-        RESPONSE_MESSAGES.employee.duplicateId(employee.id),
-        HTTP_STATUS.BAD_REQUEST,
-        ERROR_CODES.DUPLICATE_ID,
-      );
-    }
     if (await this.repository.findByEmail(employee.email)) {
       throw new AppError(
         RESPONSE_MESSAGES.employee.duplicateEmail(employee.email),
@@ -39,6 +33,14 @@ export class RegisterEmployee {
         RESPONSE_MESSAGES.employee.duplicateEmployeeNumber(employee.numeroEmpleado),
         HTTP_STATUS.BAD_REQUEST,
         ERROR_CODES.DUPLICATE_EMPLOYEE_NUMBER,
+      );
+    }
+
+    if (await this.repository.findById(employee.id)) {
+      throw new AppError(
+        RESPONSE_MESSAGES.employee.duplicateId(employee.id),
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_CODES.DUPLICATE_ID,
       );
     }
 

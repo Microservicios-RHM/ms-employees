@@ -18,7 +18,6 @@ export const createEmployeeSchema = z
     area: requiredText('area'),
     departamentoId: requiredText('departamentoId'),
     fechaIngreso: z.iso.date(RESPONSE_MESSAGES.validation.invalidEntryDate),
-    estado: z.literal('ACTIVO', { error: RESPONSE_MESSAGES.validation.invalidInitialStatus }),
   });
 
 export const employeeIdSchema = z

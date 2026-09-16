@@ -9,6 +9,10 @@ import type { EmployeeRepository } from '../src/domain/repositories/employee.rep
 class TestEmployeeRepository implements EmployeeRepository {
   private readonly employees = new Map<string, Employee>();
 
+  async findAll(): Promise<Employee[]> {
+    return [...this.employees.values()].sort((left, right) => left.id.localeCompare(right.id));
+  }
+
   async findById(id: string): Promise<Employee | undefined> {
     return this.employees.get(id);
   }
@@ -43,11 +47,13 @@ const employee = {
   estado: 'ACTIVO' as const,
 };
 
+const { estado: _estado, ...employeeRequest } = employee;
+
 describe('API de empleados', () => {
   test('registra y posteriormente consulta un empleado', async () => {
     const app = createTestApp();
 
-    const created = await request(app).post('/empleados').send(employee).expect(200);
+    const created = await request(app).post('/empleados').send(employeeRequest).expect(201);
     assert.deepEqual(created.body, {
       success: true,
       message: 'Empleado registrado correctamente',
@@ -59,6 +65,18 @@ describe('API de empleados', () => {
       success: true,
       message: 'Empleado consultado correctamente',
       data: employee,
+    });
+  });
+
+  test('lista todos los empleados registrados', async () => {
+    const app = createTestApp();
+    await request(app).post('/empleados').send(employeeRequest).expect(201);
+
+    const response = await request(app).get('/empleados').expect(200);
+    assert.deepEqual(response.body, {
+      success: true,
+      message: 'Empleados consultados correctamente',
+      data: [employee],
     });
   });
 
@@ -83,11 +101,11 @@ describe('API de empleados', () => {
 
   test('rechaza emails duplicados sin distinguir mayúsculas', async () => {
     const app = createTestApp();
-    await request(app).post('/empleados').send(employee).expect(200);
+    await request(app).post('/empleados').send(employeeRequest).expect(201);
 
     const response = await request(app)
       .post('/empleados')
-      .send({ ...employee, id: 'E002', email: 'JUAN.PEREZ@EMPRESA.COM', numeroEmpleado: 'EMP-2026-002' })
+      .send({ ...employeeRequest, id: 'E002', email: 'JUAN.PEREZ@EMPRESA.COM', numeroEmpleado: 'EMP-2026-002' })
       .expect(400);
 
     assert.equal(response.body.error.code, 'DUPLICATE_EMAIL');
@@ -96,11 +114,11 @@ describe('API de empleados', () => {
 
   test('rechaza números de empleado duplicados', async () => {
     const app = createTestApp();
-    await request(app).post('/empleados').send(employee).expect(200);
+    await request(app).post('/empleados').send(employeeRequest).expect(201);
 
     const response = await request(app)
       .post('/empleados')
-      .send({ ...employee, id: 'E002', email: 'otro@empresa.com' })
+      .send({ ...employeeRequest, id: 'E002', email: 'otro@empresa.com' })
       .expect(400);
 
     assert.equal(response.body.error.code, 'DUPLICATE_EMPLOYEE_NUMBER');
@@ -109,13 +127,13 @@ describe('API de empleados', () => {
   test('valida el modelo canónico y solo permite estado ACTIVO', async () => {
     const response = await request(createTestApp())
       .post('/empleados')
-      .send({ ...employee, email: 'correo-invalido', estado: 'RETIRADO', cargo: '' })
+      .send({ ...employeeRequest, email: 'correo-invalido', cargo: '' })
       .expect(400);
 
     assert.equal(response.body.error.code, 'VALIDATION_ERROR');
     assert.deepEqual(
       response.body.error.details.map((detail: { field: string }) => detail.field),
-      ['email', 'cargo', 'estado'],
+      ['email', 'cargo'],
     );
   });
 
@@ -154,7 +172,9 @@ describe('API de empleados', () => {
     assert.equal(response.body.openapi, '3.1.0');
     assert.equal(response.body.info.title, 'Microservicio de empleados');
     assert.ok(response.body.paths['/empleados'].post);
+    assert.ok(response.body.paths['/empleados'].get);
     assert.ok(response.body.paths['/empleados/{id}'].get);
+    assert.ok(response.body.paths['/empleados'].post.responses['201']);
     assert.ok(response.body.components.schemas.Employee);
     assert.equal(response.body.components.schemas.EmployeeResponse.properties.success.const, true);
     assert.equal(response.body.components.schemas.ErrorResponse.properties.success.const, false);

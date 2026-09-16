@@ -26,6 +26,10 @@ const requiredEmployeeProperties = [
   'estado',
 ] as const;
 
+const requiredCreateEmployeeProperties = requiredEmployeeProperties.filter(
+  (property) => property !== 'estado',
+);
+
 export const openApiDocument = {
   openapi: '3.1.0',
   info: {
@@ -63,6 +67,20 @@ export const openApiDocument = {
       },
     },
     '/empleados': {
+      get: {
+        tags: ['Empleados'],
+        summary: 'Listar todos los empleados',
+        operationId: 'listEmployees',
+        responses: {
+          '200': {
+            description: RESPONSE_MESSAGES.employee.listed,
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/EmployeeListResponse' } },
+            },
+          },
+          '500': { $ref: '#/components/responses/InternalServerError' },
+        },
+      },
       post: {
         tags: ['Empleados'],
         summary: 'Registrar un empleado',
@@ -78,7 +96,7 @@ export const openApiDocument = {
           },
         },
         responses: {
-          '200': {
+          '201': {
             description: `${RESPONSE_MESSAGES.employee.registered}.`,
             content: {
               'application/json': { schema: { $ref: '#/components/schemas/EmployeeResponse' } },
@@ -179,17 +197,22 @@ export const openApiDocument = {
           data: { $ref: '#/components/schemas/Employee' },
         },
       },
+      EmployeeListResponse: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['success', 'message', 'data'],
+        properties: {
+          success: { type: 'boolean', const: true },
+          message: { type: 'string', example: RESPONSE_MESSAGES.employee.listed },
+          data: { type: 'array', items: { $ref: '#/components/schemas/Employee' } },
+        },
+      },
       CreateEmployeeRequest: {
         type: 'object',
         additionalProperties: false,
-        required: requiredEmployeeProperties,
+        required: requiredCreateEmployeeProperties,
         properties: {
           ...employeeProperties,
-          estado: {
-            type: 'string',
-            enum: ['ACTIVO'],
-            description: 'En este reto solo se permite registrar empleados en estado ACTIVO.',
-          },
         },
       },
       ErrorResponse: {

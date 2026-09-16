@@ -12,6 +12,7 @@ export async function runMigrations(pool: pg.Pool, schema: string): Promise<stri
   const appliedMigrations: string[] = [];
   try {
     await client.query('SELECT pg_advisory_lock($1)', [728_401]);
+    await client.query(`CREATE SCHEMA IF NOT EXISTS "${schema}" AUTHORIZATION CURRENT_USER`);
     await client.query(`
       CREATE TABLE IF NOT EXISTS "${schema}".schema_migrations (
         version INTEGER PRIMARY KEY,
