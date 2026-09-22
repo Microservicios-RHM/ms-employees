@@ -13,6 +13,7 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
       HTTP_STATUS.BAD_REQUEST,
       RESPONSE_MESSAGES.validation.invalidInput,
       ERROR_CODES.VALIDATION_ERROR,
+      req.originalUrl,
       error.issues.map((issue) => ({
         field: issue.path.join('.'),
         message: issue.message,
@@ -22,7 +23,7 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
   }
 
   if (error instanceof AppError) {
-    sendError(res, error.statusCode, error.message, error.code);
+    sendError(res, error.statusCode, error.message, error.code, req.originalUrl);
     return;
   }
 
@@ -32,6 +33,7 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
       HTTP_STATUS.BAD_REQUEST,
       RESPONSE_MESSAGES.validation.invalidJson,
       ERROR_CODES.INVALID_JSON,
+      req.originalUrl,
     );
     return;
   }
@@ -42,5 +44,6 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     HTTP_STATUS.INTERNAL_SERVER_ERROR,
     RESPONSE_MESSAGES.server.internalError,
     ERROR_CODES.INTERNAL_ERROR,
+    req.originalUrl,
   );
 };

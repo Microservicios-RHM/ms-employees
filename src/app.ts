@@ -30,6 +30,10 @@ export function createApp(
   app.use(createRequestLogger(logger));
   app.use('/', documentationRouter);
   app.use(helmet());
+  app.use((_req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store');
+    next();
+  });
   app.use(express.json({ limit: '1mb' }));
 
   app.use('/', healthRouter);
@@ -41,6 +45,7 @@ export function createApp(
       HTTP_STATUS.NOT_FOUND,
       RESPONSE_MESSAGES.resource.notFound,
       ERROR_CODES.RESOURCE_NOT_FOUND,
+      _req.originalUrl,
     );
   });
   app.use(errorHandler);

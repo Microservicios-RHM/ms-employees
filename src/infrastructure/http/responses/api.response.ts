@@ -18,6 +18,9 @@ export interface ApiErrorResponse {
   readonly data: null;
   readonly error: {
     readonly code: ErrorCode;
+    readonly status: number;
+    readonly path: string;
+    readonly timestamp: string;
     readonly details?: readonly ApiErrorDetail[];
   };
 }
@@ -36,6 +39,7 @@ export function sendError(
   statusCode: number,
   message: string,
   code: ErrorCode,
+  path: string,
   details?: readonly ApiErrorDetail[],
 ): Response<ApiErrorResponse> {
   return res.status(statusCode).json({
@@ -44,6 +48,9 @@ export function sendError(
     data: null,
     error: {
       code,
+      status: statusCode,
+      path,
+      timestamp: new Date().toISOString(),
       ...(details ? { details } : {}),
     },
   });

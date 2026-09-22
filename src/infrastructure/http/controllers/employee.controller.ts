@@ -26,6 +26,7 @@ export class EmployeeController {
     try {
       const input = createEmployeeSchema.parse(req.body);
       const employee = await this.registerEmployee.execute(input);
+      res.location(`/empleados/${encodeURIComponent(employee.id)}`);
       sendSuccess(res, HTTP_STATUS.CREATED, RESPONSE_MESSAGES.employee.registered, employee);
     } catch (error) {
       next(error);

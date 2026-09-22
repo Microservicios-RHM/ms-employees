@@ -71,7 +71,8 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
         `INSERT INTO ${this.table}
           (id, nombre, apellido, email, numero_empleado, cargo, area, departamento_id, fecha_ingreso, estado)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-         RETURNING *`,
+         RETURNING id, nombre, apellido, email, numero_empleado, cargo, area, departamento_id,
+                   TO_CHAR(fecha_ingreso, 'YYYY-MM-DD') AS fecha_ingreso, estado`,
         [
           employee.id,
           employee.nombre,

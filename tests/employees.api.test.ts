@@ -62,6 +62,7 @@ describe('API de empleados', () => {
       message: 'Empleado registrado correctamente',
       data: employee,
     });
+    assert.equal(created.headers.location, '/empleados/E001');
 
     const found = await request(app).get('/empleados/E001').expect(200);
     assert.deepEqual(found.body, {
@@ -89,6 +90,9 @@ describe('API de empleados', () => {
     assert.equal(response.body.message, 'El empleado con id E999 no existe');
     assert.equal(response.body.data, null);
     assert.equal(response.body.error.code, 'EMPLOYEE_NOT_FOUND');
+    assert.equal(response.body.error.status, 404);
+    assert.equal(response.body.error.path, '/empleados/E999');
+    assert.match(response.body.error.timestamp, /^\d{4}-\d{2}-\d{2}T/);
   });
 
   test('responde el mensaje exacto para rutas o métodos no soportados', async () => {

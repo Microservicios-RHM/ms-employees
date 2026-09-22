@@ -98,6 +98,12 @@ export const openApiDocument = {
         responses: {
           '201': {
             description: `${RESPONSE_MESSAGES.employee.registered}.`,
+            headers: {
+              Location: {
+                description: 'URI relativa del empleado creado.',
+                schema: { type: 'string', example: '/empleados/E001' },
+              },
+            },
             content: {
               'application/json': { schema: { $ref: '#/components/schemas/EmployeeResponse' } },
             },
@@ -154,7 +160,12 @@ export const openApiDocument = {
                   success: false,
                   message: RESPONSE_MESSAGES.employee.notFound('E999'),
                   data: null,
-                  error: { code: ERROR_CODES.EMPLOYEE_NOT_FOUND },
+                  error: {
+                    code: ERROR_CODES.EMPLOYEE_NOT_FOUND,
+                    status: 404,
+                    path: '/empleados/E999',
+                    timestamp: '2026-02-10T12:00:00.000Z',
+                  },
                 },
               },
             },
@@ -233,8 +244,13 @@ export const openApiDocument = {
           error: {
             type: 'object',
             additionalProperties: false,
-            required: ['code'],
-            properties: { code: { type: 'string', example: ERROR_CODES.DUPLICATE_EMAIL } },
+            required: ['code', 'status', 'path', 'timestamp'],
+            properties: {
+              code: { type: 'string', example: ERROR_CODES.DUPLICATE_EMAIL },
+              status: { type: 'integer', example: 400 },
+              path: { type: 'string', example: '/empleados' },
+              timestamp: { type: 'string', format: 'date-time' },
+            },
           },
         },
       },
@@ -249,9 +265,12 @@ export const openApiDocument = {
           error: {
             type: 'object',
             additionalProperties: false,
-            required: ['code', 'details'],
+            required: ['code', 'status', 'path', 'timestamp', 'details'],
             properties: {
               code: { type: 'string', enum: [ERROR_CODES.VALIDATION_ERROR] },
+              status: { type: 'integer', example: 400 },
+              path: { type: 'string', example: '/empleados' },
+              timestamp: { type: 'string', format: 'date-time' },
               details: {
                 type: 'array',
                 items: {
@@ -279,7 +298,12 @@ export const openApiDocument = {
               success: false,
               message: RESPONSE_MESSAGES.server.internalError,
               data: null,
-              error: { code: ERROR_CODES.INTERNAL_ERROR },
+              error: {
+                code: ERROR_CODES.INTERNAL_ERROR,
+                status: 500,
+                path: '/empleados',
+                timestamp: '2026-02-10T12:00:00.000Z',
+              },
             },
           },
         },
