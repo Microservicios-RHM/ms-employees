@@ -124,7 +124,22 @@ export const openApiDocument = {
           '500': { $ref: '#/components/responses/InternalServerError' },
           '503': {
             description: 'El servicio de departamentos no está disponible después de los reintentos.',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+                example: {
+                  success: false,
+                  message: RESPONSE_MESSAGES.department.unavailable,
+                  data: null,
+                  error: {
+                    code: ERROR_CODES.DEPARTMENT_SERVICE_UNAVAILABLE,
+                    status: 503,
+                    path: '/empleados',
+                    timestamp: '2026-02-10T12:00:00.000Z',
+                  },
+                },
+              },
+            },
           },
         },
       },

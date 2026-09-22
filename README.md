@@ -99,7 +99,10 @@ Los errores mantienen los mismos campos base y agregan información técnica est
   "message": "El empleado con id E999 no existe",
   "data": null,
   "error": {
-    "code": "EMPLOYEE_NOT_FOUND"
+    "code": "EMPLOYEE_NOT_FOUND",
+    "status": 404,
+    "path": "/empleados/E999",
+    "timestamp": "2026-02-10T12:00:00.000Z"
   }
 }
 ```
