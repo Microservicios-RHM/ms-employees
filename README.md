@@ -223,6 +223,27 @@ Dentro de Docker, PostgreSQL se resuelve como `database-empleados:5432`; `localh
 solo desde Windows. Compose espera a que PostgreSQL esté `healthy`. El servicio aplica migraciones
 antes de iniciar, usa una imagen multietapa y ejecuta Node con un usuario sin privilegios.
 
+### Integración con departamentos (Reto 2)
+
+El registro consulta `GET {DEPARTMENTS_SERVICE_URL}/departamentos/{id}` después de validar la
+unicidad del email y del número de empleado. La llamada tiene timeout explícito y tres intentos con
+espera exponencial. Un `404` se traduce en `400 DEPARTMENT_NOT_FOUND`; si la dependencia no
+responde tras los reintentos se rechaza el alta con `503 DEPARTMENT_SERVICE_UNAVAILABLE`. De esta
+forma no se persisten referencias sin validar y empleados nunca accede a la base de datos de
+departamentos.
+
+Variables nuevas:
+
+```dotenv
+DEPARTMENTS_SERVICE_URL=http://localhost:8081
+DEPARTMENTS_TIMEOUT_MS=2000
+DEPARTMENTS_MAX_ATTEMPTS=3
+DEPARTMENTS_RETRY_BASE_DELAY_MS=1000
+```
+
+En Docker, la URL es `http://departamentos-service` porque se utiliza el nombre DNS interno y el
+puerto interno del contenedor, no `localhost` ni el puerto publicado al host.
+
 ## Arquitectura
 
 ```text

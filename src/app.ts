@@ -14,10 +14,15 @@ import { sendError } from './infrastructure/http/responses/api.response.ts';
 import { HTTP_STATUS } from './shared/constants/http-status.constants.ts';
 import { ERROR_CODES } from './shared/constants/error-codes.constants.ts';
 import { RESPONSE_MESSAGES } from './shared/constants/response-messages.constants.ts';
+import type { DepartmentGateway } from './domain/gateways/department.gateway.ts';
 
-export function createApp(repository: EmployeeRepository, logger: Logger) {
+export function createApp(
+  repository: EmployeeRepository,
+  departmentGateway: DepartmentGateway,
+  logger: Logger,
+) {
   const app = express();
-  const registerEmployee = new RegisterEmployee(repository);
+  const registerEmployee = new RegisterEmployee(repository, departmentGateway);
   const getEmployeeById = new GetEmployeeById(repository);
   const listEmployees = new ListEmployees(repository);
 

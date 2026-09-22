@@ -1,6 +1,7 @@
 import type { Employee, NewEmployee } from '../../domain/entities/employee.entity.ts';
 import { AppError } from '../../domain/errors/app.error.ts';
 import type { EmployeeRepository } from '../../domain/repositories/employee.repository.ts';
+import type { DepartmentGateway } from '../../domain/gateways/department.gateway.ts';
 import { HTTP_STATUS } from '../../shared/constants/http-status.constants.ts';
 import { ERROR_CODES } from '../../shared/constants/error-codes.constants.ts';
 import { RESPONSE_MESSAGES } from '../../shared/constants/response-messages.constants.ts';
@@ -8,8 +9,11 @@ import { RESPONSE_MESSAGES } from '../../shared/constants/response-messages.cons
 export class RegisterEmployee {
   private readonly repository: EmployeeRepository;
 
-  constructor(repository: EmployeeRepository) {
+  private readonly departmentGateway: DepartmentGateway;
+
+  constructor(repository: EmployeeRepository, departmentGateway: DepartmentGateway) {
     this.repository = repository;
+    this.departmentGateway = departmentGateway;
   }
 
   async execute(input: NewEmployee): Promise<Employee> {
@@ -33,6 +37,14 @@ export class RegisterEmployee {
         RESPONSE_MESSAGES.employee.duplicateEmployeeNumber(employee.numeroEmpleado),
         HTTP_STATUS.BAD_REQUEST,
         ERROR_CODES.DUPLICATE_EMPLOYEE_NUMBER,
+      );
+    }
+
+    if (!(await this.departmentGateway.existsById(employee.departamentoId))) {
+      throw new AppError(
+        RESPONSE_MESSAGES.department.notFound(employee.departamentoId),
+        HTTP_STATUS.BAD_REQUEST,
+        ERROR_CODES.DEPARTMENT_NOT_FOUND,
       );
     }
 

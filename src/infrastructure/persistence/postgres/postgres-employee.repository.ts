@@ -30,13 +30,22 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
 
   async findAll(): Promise<Employee[]> {
     const result = await this.pool.query<EmployeeRow>(
-      `SELECT * FROM ${this.table} ORDER BY id ASC`,
+      `SELECT id, nombre, apellido, email, numero_empleado, cargo, area, departamento_id,
+              TO_CHAR(fecha_ingreso, 'YYYY-MM-DD') AS fecha_ingreso, estado
+         FROM ${this.table}
+        ORDER BY id ASC`,
     );
     return result.rows.map((row) => this.toDomain(row));
   }
 
   async findById(id: string): Promise<Employee | undefined> {
-    const result = await this.pool.query<EmployeeRow>(`SELECT * FROM ${this.table} WHERE id = $1`, [id]);
+    const result = await this.pool.query<EmployeeRow>(
+      `SELECT id, nombre, apellido, email, numero_empleado, cargo, area, departamento_id,
+              TO_CHAR(fecha_ingreso, 'YYYY-MM-DD') AS fecha_ingreso, estado
+         FROM ${this.table}
+        WHERE id = $1`,
+      [id],
+    );
     return result.rows[0] ? this.toDomain(result.rows[0]) : undefined;
   }
 

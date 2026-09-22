@@ -12,6 +12,10 @@ export const RESPONSE_MESSAGES = {
   service: {
     available: 'Servicio disponible',
   },
+  department: {
+    notFound: (id: string) => `El departamento con id ${id} no existe`,
+    unavailable: 'No fue posible validar el departamento porque el servicio no está disponible',
+  },
   validation: {
     invalidInput: 'Datos de entrada inválidos',
     invalidJson: 'El cuerpo no es JSON válido',

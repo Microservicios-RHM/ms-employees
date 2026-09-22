@@ -6,6 +6,7 @@ import { PostgresEmployeeRepository } from './infrastructure/persistence/postgre
 import { runMigrations } from './infrastructure/persistence/postgres/migrations/migration.runner.ts';
 import { createLogger } from './infrastructure/logging/pino.logger.ts';
 import { waitForPostgres } from './infrastructure/persistence/postgres/postgres-readiness.ts';
+import { HttpDepartmentClient } from './infrastructure/http/clients/http-department.client.ts';
 
 const config = loadConfig();
 const logger = createLogger(config.logging);
@@ -33,7 +34,8 @@ async function bootstrap(): Promise<void> {
   logger.info('PostgreSQL connection ready');
 
   const repository = new PostgresEmployeeRepository(pool, config.database.schema);
-  const app = createApp(repository, logger);
+  const departmentClient = new HttpDepartmentClient(config.departments, logger);
+  const app = createApp(repository, departmentClient, logger);
   const server = http.createServer(app);
 
   server.listen(config.port, '0.0.0.0', () => {

@@ -85,7 +85,7 @@ export const openApiDocument = {
         tags: ['Empleados'],
         summary: 'Registrar un empleado',
         description:
-          'Registra un empleado activo. El id, email y número de empleado deben ser únicos.',
+          'Registra un empleado activo. El id, email y número de empleado deben ser únicos, y el departamento se valida por HTTP.',
         operationId: 'registerEmployee',
         requestBody: {
           required: true,
@@ -103,7 +103,7 @@ export const openApiDocument = {
             },
           },
           '400': {
-            description: 'Datos inválidos o identificador, email o número de empleado duplicado.',
+            description: 'Datos inválidos, datos duplicados o departamento inexistente.',
             content: {
               'application/json': {
                 schema: {
@@ -116,6 +116,10 @@ export const openApiDocument = {
             },
           },
           '500': { $ref: '#/components/responses/InternalServerError' },
+          '503': {
+            description: 'El servicio de departamentos no está disponible después de los reintentos.',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } },
+          },
         },
       },
     },

@@ -22,6 +22,10 @@ const environmentSchema = z.object({
   DB_POOL_MAX: z.coerce.number().int().min(1).max(50).default(10),
   DB_CONNECT_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(5),
   DB_CONNECT_RETRY_DELAY_MS: z.coerce.number().int().min(100).max(30_000).default(1000),
+  DEPARTMENTS_SERVICE_URL: z.string().url().default('http://localhost:8081'),
+  DEPARTMENTS_TIMEOUT_MS: z.coerce.number().int().min(100).max(30_000).default(2000),
+  DEPARTMENTS_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
+  DEPARTMENTS_RETRY_BASE_DELAY_MS: z.coerce.number().int().min(100).max(10_000).default(1000),
 });
 
 export interface DatabaseConfig {
@@ -41,6 +45,12 @@ export interface AppConfig {
   readonly port: number;
   readonly database: DatabaseConfig;
   readonly logging: LoggingConfig;
+  readonly departments: {
+    readonly baseUrl: string;
+    readonly timeoutMs: number;
+    readonly maxAttempts: number;
+    readonly retryBaseDelayMs: number;
+  };
 }
 
 export interface LoggingConfig {
@@ -63,6 +73,12 @@ export function loadConfig(): AppConfig {
       environment: env.NODE_ENV,
       level: env.LOG_LEVEL,
       pretty: env.LOG_PRETTY === 'true',
+    },
+    departments: {
+      baseUrl: env.DEPARTMENTS_SERVICE_URL.replace(/\/$/, ''),
+      timeoutMs: env.DEPARTMENTS_TIMEOUT_MS,
+      maxAttempts: env.DEPARTMENTS_MAX_ATTEMPTS,
+      retryBaseDelayMs: env.DEPARTMENTS_RETRY_BASE_DELAY_MS,
     },
     database: {
       host: env.DB_HOST,

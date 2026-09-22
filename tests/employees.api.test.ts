@@ -5,6 +5,7 @@ import pino from 'pino';
 import { createApp } from '../src/app.ts';
 import type { Employee } from '../src/domain/entities/employee.entity.ts';
 import type { EmployeeRepository } from '../src/domain/repositories/employee.repository.ts';
+import type { DepartmentGateway } from '../src/domain/gateways/department.gateway.ts';
 
 class TestEmployeeRepository implements EmployeeRepository {
   private readonly employees = new Map<string, Employee>();
@@ -32,7 +33,9 @@ class TestEmployeeRepository implements EmployeeRepository {
 }
 
 const testLogger = pino({ level: 'silent' });
-const createTestApp = () => createApp(new TestEmployeeRepository(), testLogger);
+const existingDepartmentGateway: DepartmentGateway = { existsById: async () => true };
+const createTestApp = (departmentGateway = existingDepartmentGateway) =>
+  createApp(new TestEmployeeRepository(), departmentGateway, testLogger);
 
 const employee = {
   id: 'E001',
@@ -122,6 +125,14 @@ describe('API de empleados', () => {
       .expect(400);
 
     assert.equal(response.body.error.code, 'DUPLICATE_EMPLOYEE_NUMBER');
+  });
+
+  test('rechaza el registro cuando el departamento no existe', async () => {
+    const app = createTestApp({ existsById: async () => false });
+    const response = await request(app).post('/empleados').send(employeeRequest).expect(400);
+
+    assert.equal(response.body.error.code, 'DEPARTMENT_NOT_FOUND');
+    assert.equal(response.body.message, 'El departamento con id IT no existe');
   });
 
   test('valida el modelo canónico y solo permite estado ACTIVO', async () => {
