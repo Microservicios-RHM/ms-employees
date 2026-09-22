@@ -2,14 +2,14 @@ import { RESPONSE_MESSAGES } from '../../../shared/constants/response-messages.c
 import { ERROR_CODES } from '../../../shared/constants/error-codes.constants.ts';
 
 const employeeProperties = {
-  id: { type: 'string', example: 'E001' },
-  nombre: { type: 'string', example: 'Juan' },
-  apellido: { type: 'string', example: 'Pérez' },
-  email: { type: 'string', format: 'email', example: 'juan.perez@empresa.com' },
-  numeroEmpleado: { type: 'string', example: 'EMP-2026-001' },
-  cargo: { type: 'string', example: 'Desarrollador Senior' },
-  area: { type: 'string', example: 'Tecnología' },
-  departamentoId: { type: 'string', example: 'IT' },
+  id: { type: 'string', maxLength: 50, example: 'E001' },
+  nombre: { type: 'string', maxLength: 100, example: 'Juan' },
+  apellido: { type: 'string', maxLength: 100, example: 'Pérez' },
+  email: { type: 'string', format: 'email', maxLength: 254, example: 'juan.perez@empresa.com' },
+  numeroEmpleado: { type: 'string', maxLength: 50, example: 'EMP-2026-001' },
+  cargo: { type: 'string', maxLength: 150, example: 'Desarrollador Senior' },
+  area: { type: 'string', maxLength: 100, example: 'Tecnología' },
+  departamentoId: { type: 'string', maxLength: 50, example: 'IT' },
   fechaIngreso: { type: 'string', format: 'date', example: '2026-02-10' },
 } as const;
 
@@ -117,6 +117,25 @@ export const openApiDocument = {
                     { $ref: '#/components/schemas/ErrorResponse' },
                     { $ref: '#/components/schemas/ValidationErrorResponse' },
                   ],
+                },
+              },
+            },
+          },
+          '413': {
+            description: 'El cuerpo de la solicitud supera el límite de 1 MB.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+                example: {
+                  success: false,
+                  message: RESPONSE_MESSAGES.validation.requestBodyTooLarge,
+                  data: null,
+                  error: {
+                    code: ERROR_CODES.REQUEST_BODY_TOO_LARGE,
+                    status: 413,
+                    path: '/empleados',
+                    timestamp: '2026-02-10T12:00:00.000Z',
+                  },
                 },
               },
             },

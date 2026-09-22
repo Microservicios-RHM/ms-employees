@@ -26,6 +26,23 @@ const environmentSchema = z.object({
   DEPARTMENTS_TIMEOUT_MS: z.coerce.number().int().min(100).max(30_000).default(2000),
   DEPARTMENTS_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
   DEPARTMENTS_RETRY_BASE_DELAY_MS: z.coerce.number().int().min(100).max(10_000).default(1000),
+  DEPARTMENTS_TOTAL_TIMEOUT_MS: z.coerce.number().int().min(100).max(120_000).default(9000),
+}).superRefine((environment, context) => {
+  if (environment.NODE_ENV === 'production' && environment.LOG_PRETTY === 'true') {
+    context.addIssue({
+      code: 'custom',
+      path: ['LOG_PRETTY'],
+      message: 'LOG_PRETTY debe ser false en producción',
+    });
+  }
+
+  if (environment.DEPARTMENTS_TOTAL_TIMEOUT_MS < environment.DEPARTMENTS_TIMEOUT_MS) {
+    context.addIssue({
+      code: 'custom',
+      path: ['DEPARTMENTS_TOTAL_TIMEOUT_MS'],
+      message: 'Debe ser mayor o igual a DEPARTMENTS_TIMEOUT_MS',
+    });
+  }
 });
 
 export interface DatabaseConfig {
@@ -50,6 +67,7 @@ export interface AppConfig {
     readonly timeoutMs: number;
     readonly maxAttempts: number;
     readonly retryBaseDelayMs: number;
+    readonly totalTimeoutMs: number;
   };
 }
 
@@ -79,6 +97,7 @@ export function loadConfig(): AppConfig {
       timeoutMs: env.DEPARTMENTS_TIMEOUT_MS,
       maxAttempts: env.DEPARTMENTS_MAX_ATTEMPTS,
       retryBaseDelayMs: env.DEPARTMENTS_RETRY_BASE_DELAY_MS,
+      totalTimeoutMs: env.DEPARTMENTS_TOTAL_TIMEOUT_MS,
     },
     database: {
       host: env.DB_HOST,

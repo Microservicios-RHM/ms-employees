@@ -242,6 +242,7 @@ DEPARTMENTS_SERVICE_URL=http://localhost:8081
 DEPARTMENTS_TIMEOUT_MS=2000
 DEPARTMENTS_MAX_ATTEMPTS=3
 DEPARTMENTS_RETRY_BASE_DELAY_MS=1000
+DEPARTMENTS_TOTAL_TIMEOUT_MS=9000
 ```
 
 En Docker, la URL es `http://departamentos-service` porque se utiliza el nombre DNS interno y el

@@ -152,6 +152,18 @@ describe('API de empleados', () => {
     );
   });
 
+  test('rechaza campos que superan la longitud admitida antes de consultar la base de datos', async () => {
+    const response = await request(createTestApp())
+      .post('/empleados')
+      .send({ ...employeeRequest, cargo: 'a'.repeat(151) })
+      .expect(400);
+
+    assert.equal(response.body.error.code, 'VALIDATION_ERROR');
+    assert.deepEqual(response.body.error.details, [
+      { field: 'cargo', message: 'cargo no puede superar 150 caracteres' },
+    ]);
+  });
+
   test('rechaza JSON mal formado', async () => {
     const response = await request(createTestApp())
       .post('/empleados')
@@ -160,6 +172,18 @@ describe('API de empleados', () => {
       .expect(400);
 
     assert.equal(response.body.error.code, 'INVALID_JSON');
+  });
+
+  test('responde 413 con el contrato de error cuando el cuerpo excede 1 MB', async () => {
+    const response = await request(createTestApp())
+      .post('/empleados')
+      .send({ payload: 'a'.repeat(1_048_576) })
+      .expect(413);
+
+    assert.equal(response.body.success, false);
+    assert.equal(response.body.error.code, 'REQUEST_BODY_TOO_LARGE');
+    assert.equal(response.body.error.status, 413);
+    assert.equal(response.body.error.path, '/empleados');
   });
 
   test('expone el health check', async () => {

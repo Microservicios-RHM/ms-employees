@@ -5,11 +5,10 @@ import { loadConfig } from '../../../../config/environment.config.ts';
 import { createPostgresPool } from '../postgres.client.ts';
 import { createEmployeesMigration } from './001-create-employees-table.migration.ts';
 
-const migrations = [createEmployeesMigration];
-
 export async function runMigrations(pool: pg.Pool, schema: string): Promise<string[]> {
   const client = await pool.connect();
   const appliedMigrations: string[] = [];
+  const migrations = [createEmployeesMigration(schema)];
   try {
     await client.query('SELECT pg_advisory_lock($1)', [728_401]);
     await client.query(`CREATE SCHEMA IF NOT EXISTS "${schema}" AUTHORIZATION CURRENT_USER`);
@@ -53,7 +52,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const config = loadConfig();
   const { createLogger } = await import('../../../logging/pino.logger.ts');
   const logger = createLogger(config.logging);
-  const pool = createPostgresPool(config.database);
+  const pool = createPostgresPool(config.database, logger);
   try {
     const appliedMigrations = await runMigrations(pool, config.database.schema);
     if (appliedMigrations.length === 0) {

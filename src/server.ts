@@ -10,7 +10,7 @@ import { HttpDepartmentClient } from './infrastructure/http/clients/http-departm
 
 const config = loadConfig();
 const logger = createLogger(config.logging);
-const pool = createPostgresPool(config.database);
+const pool = createPostgresPool(config.database, logger);
 
 async function bootstrap(): Promise<void> {
   logger.info(

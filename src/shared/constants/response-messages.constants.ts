@@ -19,8 +19,10 @@ export const RESPONSE_MESSAGES = {
   validation: {
     invalidInput: 'Datos de entrada inválidos',
     invalidJson: 'El cuerpo no es JSON válido',
+    requestBodyTooLarge: 'El cuerpo de la solicitud supera el tamaño máximo permitido',
     required: (field: string) => `${field} es obligatorio`,
     notEmpty: (field: string) => `${field} no puede estar vacío`,
+    maxLength: (field: string, max: number) => `${field} no puede superar ${max} caracteres`,
     invalidEmail: 'email debe tener un formato válido',
     invalidEntryDate: 'fechaIngreso debe tener el formato YYYY-MM-DD',
     invalidInitialStatus: 'estado debe ser ACTIVO en este reto',

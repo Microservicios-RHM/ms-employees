@@ -7,6 +7,17 @@ import { ERROR_CODES } from '../../../shared/constants/error-codes.constants.ts'
 import { RESPONSE_MESSAGES } from '../../../shared/constants/response-messages.constants.ts';
 
 export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
+  if (typeof error === 'object' && error !== null && 'type' in error && error.type === 'entity.too.large') {
+    sendError(
+      res,
+      HTTP_STATUS.PAYLOAD_TOO_LARGE,
+      RESPONSE_MESSAGES.validation.requestBodyTooLarge,
+      ERROR_CODES.REQUEST_BODY_TOO_LARGE,
+      req.originalUrl,
+    );
+    return;
+  }
+
   if (error instanceof ZodError) {
     sendError(
       res,

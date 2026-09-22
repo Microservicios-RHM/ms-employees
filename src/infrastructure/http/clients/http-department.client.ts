@@ -10,6 +10,7 @@ export interface DepartmentClientConfig {
   readonly timeoutMs: number;
   readonly maxAttempts: number;
   readonly retryBaseDelayMs: number;
+  readonly totalTimeoutMs: number;
 }
 
 export class HttpDepartmentClient implements DepartmentGateway {
@@ -26,12 +27,16 @@ export class HttpDepartmentClient implements DepartmentGateway {
 
   async existsById(id: string): Promise<boolean> {
     const url = `${this.config.baseUrl}/departamentos/${encodeURIComponent(id)}`;
+    const deadline = Date.now() + this.config.totalTimeoutMs;
 
     for (let attempt = 1; attempt <= this.config.maxAttempts; attempt += 1) {
+      const remainingTimeMs = deadline - Date.now();
+      if (remainingTimeMs <= 0) break;
+
       try {
         const response = await fetch(url, {
           headers: { accept: 'application/json' },
-          signal: AbortSignal.timeout(this.config.timeoutMs),
+          signal: AbortSignal.timeout(Math.min(this.config.timeoutMs, remainingTimeMs)),
         });
 
         if (response.status === HTTP_STATUS.NOT_FOUND) return false;
@@ -40,7 +45,11 @@ export class HttpDepartmentClient implements DepartmentGateway {
       } catch (error) {
         this.logger.warn({ err: error, attempt, departmentId: id }, 'Department validation failed');
         if (attempt < this.config.maxAttempts) {
-          await this.delay(this.config.retryBaseDelayMs * 2 ** (attempt - 1));
+          const retryDelayMs = Math.min(
+            this.config.retryBaseDelayMs * 2 ** (attempt - 1),
+            Math.max(0, deadline - Date.now()),
+          );
+          if (retryDelayMs > 0) await this.delay(retryDelayMs);
         }
       }
     }
