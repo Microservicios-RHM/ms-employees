@@ -44,7 +44,8 @@ npm run dev
 ```
 
 El servidor también aplica las migraciones pendientes antes de comenzar a escuchar peticiones.
-Queda disponible en `http://localhost:8080`.
+En el despliegue Compose, el servicio escucha en `8080` dentro de la red Docker y se consume
+mediante el API Gateway en `http://localhost:8080`.
 
 Comandos disponibles:
 
@@ -63,6 +64,17 @@ Health check:
 ```bash
 curl -i http://localhost:8080/health
 ```
+
+En Docker, las rutas públicas pasan por el Gateway:
+
+```text
+Base URL:       http://localhost:8080
+Empleados:      http://localhost:8080/empleados
+Departamentos:  http://localhost:8080/departamentos
+Health Gateway: http://localhost:8080/health
+```
+
+`empleados-service` no publica directamente su puerto HTTP al host; su puerto interno es `8080`.
 
 Documentación interactiva y contrato OpenAPI:
 
@@ -224,7 +236,9 @@ docker compose ps
 
 Dentro de Docker, PostgreSQL se resuelve como `database-empleados:5432`; `localhost:5433` se usa
 solo desde Windows. Compose espera a que PostgreSQL esté `healthy`. El servicio aplica migraciones
-antes de iniciar, usa una imagen multietapa y ejecuta Node con un usuario sin privilegios.
+antes de iniciar, usa una imagen multietapa y ejecuta Node con un usuario sin privilegios. El acceso
+externo debe realizarse por `http://localhost:8080`; el Gateway enruta `/empleados/*` y
+`/departamentos/*` hacia los servicios internos.
 
 ### Integración con departamentos (Reto 2)
 
@@ -243,10 +257,57 @@ DEPARTMENTS_TIMEOUT_MS=2000
 DEPARTMENTS_MAX_ATTEMPTS=3
 DEPARTMENTS_RETRY_BASE_DELAY_MS=1000
 DEPARTMENTS_TOTAL_TIMEOUT_MS=9000
+DEPARTMENTS_CIRCUIT_BREAKER_THRESHOLD=3
+DEPARTMENTS_CIRCUIT_BREAKER_RESET_TIMEOUT_MS=30000
 ```
 
 En Docker, la URL es `http://departamentos-service` porque se utiliza el nombre DNS interno y el
 puerto interno del contenedor, no `localhost` ni el puerto publicado al host.
+
+### Circuit Breaker (Reto 3)
+
+La operación `HttpDepartmentClient.existsById()` está protegida por un Circuit Breaker
+implementado con `opossum` dentro de `ms-employees`. El breaker envuelve la operación completa,
+incluidos sus reintentos y backoff; por eso los intentos internos no incrementan individualmente
+el contador de fallos.
+
+La configuración actual es:
+
+```dotenv
+DEPARTMENTS_CIRCUIT_BREAKER_THRESHOLD=3
+DEPARTMENTS_CIRCUIT_BREAKER_RESET_TIMEOUT_MS=30000
+```
+
+`DEPARTMENTS_CIRCUIT_BREAKER_THRESHOLD` indica tres fallos definitivos consecutivos de operación
+para abrir el circuito. El contador se reinicia después de cualquier éxito, incluido un `404`, y
+opossum gestiona la transición real del estado del circuito. `DEPARTMENTS_CIRCUIT_BREAKER_RESET_TIMEOUT_MS` mantiene el circuito abierto durante
+30 segundos antes de permitir una llamada de prueba en `HALF_OPEN`. El timeout de opossum está
+desactivado deliberadamente: el timeout por intento y el timeout total existentes siguen siendo
+la única política de tiempo de la llamada HTTP.
+
+En `CLOSED`, las validaciones se ejecutan normalmente. Un `2xx` cuenta como éxito y un `404` se
+traduce a `false`, por lo que conserva el comportamiento `DEPARTMENT_NOT_FOUND` con HTTP `400` y
+no abre el circuito. Los errores `5xx`, los timeouts y los errores de red se reintentan según la
+configuración existente; si la operación completa falla, cuenta como un único fallo del breaker.
+
+En `OPEN`, no se ejecuta ninguna llamada HTTP a departamentos. El fallback responde mediante el
+error existente `DEPARTMENT_SERVICE_UNAVAILABLE` con HTTP `503`, sin persistir ningún empleado ni
+introducir el estado `PENDIENTE_VALIDACION` en el dominio o en PostgreSQL. Tras el reset timeout,
+`HALF_OPEN` permite una única llamada de prueba: un éxito cierra el circuito y un fallo lo vuelve
+a abrir.
+
+Las transiciones `OPEN`, `HALF_OPEN` y `CLOSED`, además de los éxitos, fallos, rechazos y ejecución
+del fallback, se registran con el logger Pino existente.
+
+Para ejecutar las pruebas deterministas del breaker:
+
+```bash
+npm test
+```
+
+Las pruebas simulan respuestas de departamentos y verifican `CLOSED`, `404`, `OPEN`, `HALF_OPEN`
+con recuperación y `HALF_OPEN` con fallo, sin modificar PostgreSQL ni depender de esperar los
+30 segundos de producción.
 
 ## Arquitectura
 
