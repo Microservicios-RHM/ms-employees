@@ -20,7 +20,6 @@ export class HttpDepartmentClient implements DepartmentGateway {
   private readonly config: DepartmentClientConfig;
   private readonly logger: Logger;
   private readonly circuitBreaker: CircuitBreaker<[string], boolean>;
-  private consecutiveFailures = 0;
 
   constructor(
     config: DepartmentClientConfig,
@@ -33,8 +32,10 @@ export class HttpDepartmentClient implements DepartmentGateway {
       {
         name: 'department-validation',
         timeout: false,
-        volumeThreshold: Number.MAX_SAFE_INTEGER,
-        errorThresholdPercentage: 100,
+        volumeThreshold: this.config.circuitBreakerThreshold,
+        errorThresholdPercentage: 50,
+        rollingCountTimeout: 30_000,
+        rollingCountBuckets: 10,
         resetTimeout: this.config.circuitBreakerResetTimeoutMs,
       },
     );
@@ -89,17 +90,7 @@ export class HttpDepartmentClient implements DepartmentGateway {
   }
 
   private async executeDepartmentValidation(id: string): Promise<boolean> {
-    try {
-      const result = await this.validateDepartment(id);
-      this.consecutiveFailures = 0;
-      return result;
-    } catch (error) {
-      this.consecutiveFailures += 1;
-      if (this.consecutiveFailures >= this.config.circuitBreakerThreshold) {
-        this.circuitBreaker.open();
-      }
-      throw error;
-    }
+    return this.validateDepartment(id);
   }
 
   private departmentServiceUnavailableError(): AppError {

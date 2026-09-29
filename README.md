@@ -278,10 +278,10 @@ DEPARTMENTS_CIRCUIT_BREAKER_THRESHOLD=3
 DEPARTMENTS_CIRCUIT_BREAKER_RESET_TIMEOUT_MS=30000
 ```
 
-`DEPARTMENTS_CIRCUIT_BREAKER_THRESHOLD` indica tres fallos definitivos consecutivos de operación
-para abrir el circuito. El contador se reinicia después de cualquier éxito, incluido un `404`, y
-opossum gestiona la transición real del estado del circuito. `DEPARTMENTS_CIRCUIT_BREAKER_RESET_TIMEOUT_MS` mantiene el circuito abierto durante
-30 segundos antes de permitir una llamada de prueba en `HALF_OPEN`. El timeout de opossum está
+`DEPARTMENTS_CIRCUIT_BREAKER_THRESHOLD` establece el volumen mínimo de tres operaciones; cuando
+la tasa de fallos alcanza 50 % en la ventana de 30 segundos, `opossum` abre el circuito.
+`DEPARTMENTS_CIRCUIT_BREAKER_RESET_TIMEOUT_MS` mantiene el circuito abierto durante 30 segundos
+antes de permitir una llamada de prueba en `HALF_OPEN`. El timeout de opossum está
 desactivado deliberadamente: el timeout por intento y el timeout total existentes siguen siendo
 la única política de tiempo de la llamada HTTP.
 

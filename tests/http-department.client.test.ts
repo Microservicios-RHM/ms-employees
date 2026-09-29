@@ -49,7 +49,7 @@ describe('HttpDepartmentClient circuit breaker', () => {
     assert.equal(calls, 4);
   });
 
-  test('reinicia la racha de fallos después de un éxito', async () => {
+  test('abre por tasa de fallos de la ventana, incluso si hubo un éxito previo', async () => {
     let calls = 0;
     let available = false;
     globalThis.fetch = async () => {
@@ -64,11 +64,7 @@ describe('HttpDepartmentClient circuit breaker', () => {
     assert.equal(await client.existsById('IT'), true);
     available = false;
     await assert.rejects(client.existsById('IT'));
-    await assert.rejects(client.existsById('IT'));
-    assert.equal(calls, 4);
-
-    await assert.rejects(client.existsById('IT'));
-    assert.equal(calls, 5);
+    assert.equal(calls, 3);
   });
 
   test('abre tras tres fallos y rechaza sin ejecutar HTTP mientras está OPEN', async () => {
