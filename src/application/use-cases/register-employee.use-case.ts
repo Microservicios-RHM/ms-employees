@@ -2,18 +2,27 @@ import type { Employee, NewEmployee } from '../../domain/entities/employee.entit
 import { AppError } from '../../domain/errors/app.error.ts';
 import type { EmployeeRepository } from '../../domain/repositories/employee.repository.ts';
 import type { DepartmentGateway } from '../../domain/gateways/department.gateway.ts';
+import type { EventPublisher } from '../../domain/gateways/event-publisher.gateway.ts';
 import { HTTP_STATUS } from '../../shared/constants/http-status.constants.ts';
 import { ERROR_CODES } from '../../shared/constants/error-codes.constants.ts';
 import { RESPONSE_MESSAGES } from '../../shared/constants/response-messages.constants.ts';
+import { EVENT_TYPES } from '../../shared/constants/event-types.constants.ts';
 
 export class RegisterEmployee {
   private readonly repository: EmployeeRepository;
 
   private readonly departmentGateway: DepartmentGateway;
 
-  constructor(repository: EmployeeRepository, departmentGateway: DepartmentGateway) {
+  private readonly eventPublisher: EventPublisher;
+
+  constructor(
+    repository: EmployeeRepository,
+    departmentGateway: DepartmentGateway,
+    eventPublisher: EventPublisher,
+  ) {
     this.repository = repository;
     this.departmentGateway = departmentGateway;
+    this.eventPublisher = eventPublisher;
   }
 
   async execute(input: NewEmployee): Promise<Employee> {
@@ -23,6 +32,7 @@ export class RegisterEmployee {
       email: input.email.trim().toLowerCase(),
       numeroEmpleado: input.numeroEmpleado.trim(),
       estado: 'ACTIVO',
+      fechaRetiro: null,
     };
 
     if (await this.repository.findByEmail(employee.email)) {
@@ -56,6 +66,12 @@ export class RegisterEmployee {
       );
     }
 
-    return this.repository.save(employee);
+    const saved = await this.repository.save(employee);
+
+    // El publish() de EventPublisher nunca rechaza: un fallo del broker se registra como log,
+    // no como error de esta operación. El alta ya quedó persistida y responde 201 igual.
+    await this.eventPublisher.publish({ type: EVENT_TYPES.EMPLOYEE_CREATED, data: saved });
+
+    return saved;
   }
 }

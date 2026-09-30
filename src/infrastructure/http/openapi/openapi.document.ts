@@ -24,10 +24,11 @@ const requiredEmployeeProperties = [
   'departamentoId',
   'fechaIngreso',
   'estado',
+  'fechaRetiro',
 ] as const;
 
 const requiredCreateEmployeeProperties = requiredEmployeeProperties.filter(
-  (property) => property !== 'estado',
+  (property) => property !== 'estado' && property !== 'fechaRetiro',
 );
 
 export const openApiDocument = {
@@ -69,13 +70,48 @@ export const openApiDocument = {
     '/empleados': {
       get: {
         tags: ['Empleados'],
-        summary: 'Listar todos los empleados',
+        summary: 'Listar empleados (con filtros de auditoría opcionales)',
+        description:
+          'Sin filtros, lista todos los empleados. `estado=RETIRADO` lista solo los retirados; ' +
+          '`desde`/`hasta` (YYYY-MM-DD) acotan por fechaRetiro y solo tienen efecto sobre ' +
+          'empleados retirados, ya que son los únicos con esa fecha.',
         operationId: 'listEmployees',
+        parameters: [
+          {
+            name: 'estado',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', enum: ['ACTIVO', 'EN_VACACIONES', 'RETIRADO'] },
+            example: 'RETIRADO',
+          },
+          {
+            name: 'desde',
+            in: 'query',
+            required: false,
+            description: 'Filtra por fechaRetiro >= desde (YYYY-MM-DD).',
+            schema: { type: 'string', format: 'date' },
+            example: '2026-01-01',
+          },
+          {
+            name: 'hasta',
+            in: 'query',
+            required: false,
+            description: 'Filtra por fechaRetiro <= hasta (YYYY-MM-DD).',
+            schema: { type: 'string', format: 'date' },
+            example: '2026-06-30',
+          },
+        ],
         responses: {
           '200': {
             description: RESPONSE_MESSAGES.employee.listed,
             content: {
               'application/json': { schema: { $ref: '#/components/schemas/EmployeeListResponse' } },
+            },
+          },
+          '400': {
+            description: 'estado, desde u hasta con formato inválido, o desde posterior a hasta.',
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/ValidationErrorResponse' } },
             },
           },
           '500': { $ref: '#/components/responses/InternalServerError' },
@@ -207,6 +243,133 @@ export const openApiDocument = {
           '500': { $ref: '#/components/responses/InternalServerError' },
         },
       },
+      put: {
+        tags: ['Empleados'],
+        summary: 'Actualizar un empleado',
+        description:
+          'Actualiza nombre, apellido, email, cargo, área y departamento de un empleado activo. ' +
+          'El id, numeroEmpleado, fechaIngreso y estado no se modifican por este endpoint. ' +
+          'Publica el evento empleado.actualizado.',
+        operationId: 'updateEmployee',
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            description: 'Identificador único del empleado.',
+            schema: { type: 'string', minLength: 1 },
+            example: 'E001',
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/UpdateEmployeeRequest' },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: `${RESPONSE_MESSAGES.employee.updated}.`,
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/EmployeeResponse' } },
+            },
+          },
+          '400': {
+            description:
+              'Datos inválidos, email duplicado, departamento inexistente o empleado retirado.',
+            content: {
+              'application/json': {
+                schema: {
+                  oneOf: [
+                    { $ref: '#/components/schemas/ErrorResponse' },
+                    { $ref: '#/components/schemas/ValidationErrorResponse' },
+                  ],
+                },
+              },
+            },
+          },
+          '404': {
+            description: 'El empleado solicitado no existe.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+                example: {
+                  success: false,
+                  message: RESPONSE_MESSAGES.employee.notFound('E999'),
+                  data: null,
+                  error: {
+                    code: ERROR_CODES.EMPLOYEE_NOT_FOUND,
+                    status: 404,
+                    path: '/empleados/E999',
+                    timestamp: '2026-02-10T12:00:00.000Z',
+                  },
+                },
+              },
+            },
+          },
+          '500': { $ref: '#/components/responses/InternalServerError' },
+          '503': {
+            description: 'El servicio de departamentos no está disponible después de los reintentos.',
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } },
+            },
+          },
+        },
+      },
+      delete: {
+        tags: ['Empleados'],
+        summary: 'Retirar un empleado (baja lógica)',
+        description:
+          'No borra el registro: transiciona estado a RETIRADO y persiste fechaRetiro. ' +
+          'Publica el evento empleado.retirado. Un empleado ya RETIRADO no puede retirarse de nuevo.',
+        operationId: 'retireEmployee',
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            description: 'Identificador único del empleado.',
+            schema: { type: 'string', minLength: 1 },
+            example: 'E001',
+          },
+        ],
+        responses: {
+          '200': {
+            description: `${RESPONSE_MESSAGES.employee.retired}.`,
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/EmployeeResponse' } },
+            },
+          },
+          '400': {
+            description: 'El empleado ya está RETIRADO.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+                example: {
+                  success: false,
+                  message: RESPONSE_MESSAGES.employee.cannotModifyRetired('E001'),
+                  data: null,
+                  error: {
+                    code: ERROR_CODES.EMPLOYEE_RETIRED,
+                    status: 400,
+                    path: '/empleados/E001',
+                    timestamp: '2026-02-10T12:00:00.000Z',
+                  },
+                },
+              },
+            },
+          },
+          '404': {
+            description: 'El empleado solicitado no existe.',
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } },
+            },
+          },
+          '500': { $ref: '#/components/responses/InternalServerError' },
+        },
+      },
     },
   },
   components: {
@@ -234,6 +397,12 @@ export const openApiDocument = {
         properties: {
           ...employeeProperties,
           estado: { type: 'string', enum: ['ACTIVO', 'EN_VACACIONES', 'RETIRADO'] },
+          fechaRetiro: {
+            type: ['string', 'null'],
+            format: 'date-time',
+            example: null,
+            description: 'Fecha y hora del retiro. null mientras el empleado no esté RETIRADO.',
+          },
         },
       },
       EmployeeResponse: {
@@ -262,6 +431,19 @@ export const openApiDocument = {
         required: requiredCreateEmployeeProperties,
         properties: {
           ...employeeProperties,
+        },
+      },
+      UpdateEmployeeRequest: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['nombre', 'apellido', 'email', 'cargo', 'area', 'departamentoId'],
+        properties: {
+          nombre: employeeProperties.nombre,
+          apellido: employeeProperties.apellido,
+          email: employeeProperties.email,
+          cargo: employeeProperties.cargo,
+          area: employeeProperties.area,
+          departamentoId: employeeProperties.departamentoId,
         },
       },
       ErrorResponse: {

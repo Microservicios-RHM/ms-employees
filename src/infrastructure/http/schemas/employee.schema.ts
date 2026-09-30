@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { RESPONSE_MESSAGES } from '../../../shared/constants/response-messages.constants.ts';
+import { EMPLOYEE_STATUSES } from '../../../domain/entities/employee.entity.ts';
 
 const requiredText = (field: string, maxLength: number) =>
   z
@@ -19,6 +20,26 @@ export const createEmployeeSchema = z
     area: requiredText('area', 100),
     departamentoId: requiredText('departamentoId', 50),
     fechaIngreso: z.iso.date(RESPONSE_MESSAGES.validation.invalidEntryDate),
+  });
+
+export const updateEmployeeSchema = z.strictObject({
+  nombre: requiredText('nombre', 100),
+  apellido: requiredText('apellido', 100),
+  email: z.email(RESPONSE_MESSAGES.validation.invalidEmail).trim().toLowerCase().max(254, RESPONSE_MESSAGES.validation.maxLength('email', 254)),
+  cargo: requiredText('cargo', 150),
+  area: requiredText('area', 100),
+  departamentoId: requiredText('departamentoId', 50),
+});
+
+export const listEmployeesQuerySchema = z
+  .strictObject({
+    estado: z.enum(EMPLOYEE_STATUSES).optional(),
+    desde: z.iso.date(RESPONSE_MESSAGES.validation.invalidDate('desde')).optional(),
+    hasta: z.iso.date(RESPONSE_MESSAGES.validation.invalidDate('hasta')).optional(),
+  })
+  .refine((query) => !query.desde || !query.hasta || query.desde <= query.hasta, {
+    message: RESPONSE_MESSAGES.validation.invalidDateRange,
+    path: ['desde'],
   });
 
 export const employeeIdSchema = z

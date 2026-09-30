@@ -2,6 +2,8 @@ import express from 'express';
 import helmet from 'helmet';
 import type { Logger } from 'pino';
 import { RegisterEmployee } from './application/use-cases/register-employee.use-case.ts';
+import { UpdateEmployee } from './application/use-cases/update-employee.use-case.ts';
+import { RetireEmployee } from './application/use-cases/retire-employee.use-case.ts';
 import { GetEmployeeById } from './application/use-cases/get-employee-by-id.use-case.ts';
 import { ListEmployees } from './application/use-cases/list-employees.use-case.ts';
 import type { EmployeeRepository } from './domain/repositories/employee.repository.ts';
@@ -15,14 +17,18 @@ import { HTTP_STATUS } from './shared/constants/http-status.constants.ts';
 import { ERROR_CODES } from './shared/constants/error-codes.constants.ts';
 import { RESPONSE_MESSAGES } from './shared/constants/response-messages.constants.ts';
 import type { DepartmentGateway } from './domain/gateways/department.gateway.ts';
+import type { EventPublisher } from './domain/gateways/event-publisher.gateway.ts';
 
 export function createApp(
   repository: EmployeeRepository,
   departmentGateway: DepartmentGateway,
+  eventPublisher: EventPublisher,
   logger: Logger,
 ) {
   const app = express();
-  const registerEmployee = new RegisterEmployee(repository, departmentGateway);
+  const registerEmployee = new RegisterEmployee(repository, departmentGateway, eventPublisher);
+  const updateEmployee = new UpdateEmployee(repository, departmentGateway, eventPublisher);
+  const retireEmployee = new RetireEmployee(repository, eventPublisher);
   const getEmployeeById = new GetEmployeeById(repository);
   const listEmployees = new ListEmployees(repository);
 
@@ -37,7 +43,16 @@ export function createApp(
   app.use(express.json({ limit: '1mb' }));
 
   app.use('/', healthRouter);
-  app.use('/empleados', createEmployeeRouter(registerEmployee, getEmployeeById, listEmployees));
+  app.use(
+    '/empleados',
+    createEmployeeRouter(
+      registerEmployee,
+      updateEmployee,
+      retireEmployee,
+      getEmployeeById,
+      listEmployees,
+    ),
+  );
 
   app.use((_req, res) => {
     sendError(

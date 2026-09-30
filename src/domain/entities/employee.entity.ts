@@ -13,6 +13,13 @@ export interface Employee {
   readonly departamentoId: string;
   readonly fechaIngreso: string;
   readonly estado: EmployeeStatus;
+  readonly fechaRetiro: string | null;
 }
 
-export type NewEmployee = Omit<Employee, 'estado'>;
+export type NewEmployee = Omit<Employee, 'estado' | 'fechaRetiro'>;
+
+export interface EmployeeListFilters {
+  readonly estado?: EmployeeStatus;
+  readonly desde?: string;
+  readonly hasta?: string;
+}

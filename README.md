@@ -6,46 +6,43 @@ independiente `employees_db`.
 
 ## Requisitos
 
-- Node.js 24 y npm 11.
-- PostgreSQL de `rhm-database-infrastructure` disponible en `localhost:5433`.
-- Docker para ejecución contenerizada.
+- Node.js 24 y npm 11 (solo para tooling local: typecheck, tests, lint).
+- Docker y Docker Compose para ejecutar el servicio real.
 
-## Configuración local
+## Ejecución (solo Docker Compose)
 
-Instalar dependencias y crear la configuración privada:
+Desde el Reto 3, `rhm-database-infrastructure` ya no publica al host los puertos de PostgreSQL ni
+de `departamentos-service`: ambos solo son alcanzables dentro de la red Docker
+(`microservices-network`). Por eso `npm run dev` **no puede** apuntar a una base de datos ni a
+departamentos corriendo fuera de Docker — no hay `localhost:5433` ni `localhost:8081` a los que
+conectarse. El único flujo soportado para correr el servicio completo es:
+
+```bash
+cd ../rhm-database-infrastructure
+cp .env.example .env
+docker compose up --build
+```
+
+El servicio queda disponible en `http://localhost:8080` (a través del `api-gateway`, según
+`docker-compose.yml`). Dentro de Docker resuelve `database-empleados:5432` y
+`departamentos-service:80`; el `.env.example` de este repositorio refleja esos valores de
+referencia, no los de una base de datos accesible desde el host.
+
+## Configuración local (tooling, no ejecución)
+
+Instalar dependencias para poder correr `npm run typecheck` / `npm test` / `npm run build` sin
+Docker:
 
 ```bash
 npm ci
 cp .env.example .env
 ```
 
-Variables principales:
-
-```env
-DB_HOST=localhost
-DB_PORT=5433
-DB_NAME=employees_db
-DB_SCHEMA=employees
-DB_USER=employees_service
-DB_PASSWORD=la_clave_configurada_en_la_infraestructura
-```
-
-El archivo `.env` nunca se versiona. La aplicación valida toda la configuración al arrancar y falla
-inmediatamente si falta una variable requerida o PostgreSQL no está disponible.
-
-## Migraciones y ejecución
-
-Las migraciones pertenecen a este microservicio y se registran en
-`employees.schema_migrations`. Son idempotentes: ejecutar el comando varias veces no repite cambios.
-
-```bash
-npm run db:migrate
-npm run dev
-```
-
-El servidor también aplica las migraciones pendientes antes de comenzar a escuchar peticiones.
-En el despliegue Compose, el servicio escucha en `8080` dentro de la red Docker y se consume
-mediante el API Gateway en `http://localhost:8080`.
+`npm test` usa dobles de prueba, no una conexión real, así que no depende de que la infraestructura
+esté levantada. `npm run dev` y `npm run db:migrate` sí necesitan PostgreSQL accesible por
+`DB_HOST`/`DB_PORT`; con la infraestructura actual, la única forma de tener esa conectividad es
+ejecutando este servicio como contenedor dentro de `docker-compose.yml` (arriba), no sueltos en el
+host.
 
 Comandos disponibles:
 
@@ -79,9 +76,13 @@ Health Gateway: http://localhost:8080/health
 Documentación interactiva y contrato OpenAPI:
 
 ```text
-Swagger UI:       http://localhost:8080/docs
-Documento JSON:  http://localhost:8080/openapi.json
+Swagger UI:       http://localhost:8080/empleados/docs
+Documento JSON:  http://localhost:8080/empleados/openapi.json
 ```
+
+Montados bajo `/empleados` a propósito: es el mismo prefijo que el API Gateway ya proxea sin
+reescribir la ruta, así que quedan alcanzables detrás del Gateway (`http://localhost:8080`) sin
+ningún cambio en `api-gateway`.
 
 Swagger UI permite inspeccionar schemas, respuestas y ejemplos, y ejecutar peticiones directamente
 contra el servidor actual.
@@ -191,6 +192,50 @@ curl -i http://localhost:8080/empleados/E999
 curl -i http://localhost:8080/empleados
 ```
 
+Actualizar un empleado (nombre, apellido, email, cargo, área y departamento; `id`, `numeroEmpleado`,
+`fechaIngreso` y `estado` no se aceptan en este endpoint y su presencia en el body causa
+`400 VALIDATION_ERROR`). Publica `empleado.actualizado`:
+
+```bash
+curl -i -X PUT http://localhost:8080/empleados/E001 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nombre":"Juan",
+    "apellido":"Pérez",
+    "email":"juan.perez@empresa.com",
+    "cargo":"Tech Lead",
+    "area":"Tecnología",
+    "departamentoId":"IT"
+  }'
+```
+
+Reglas adicionales: `404 EMPLOYEE_NOT_FOUND` si el id no existe; `400 EMPLOYEE_RETIRED` si el
+empleado ya está `RETIRADO` (la baja lógica, Reto 4, lo vuelve inmutable); `400 DUPLICATE_EMAIL` si
+el nuevo email ya lo usa otro empleado; `400 DEPARTMENT_NOT_FOUND` / `503
+DEPARTMENT_SERVICE_UNAVAILABLE` con la misma validación HTTP que `POST /empleados`.
+
+Retirar un empleado (baja lógica: nunca se borra físicamente, se transiciona a `RETIRADO` y se
+persiste `fechaRetiro`; regla de dominio del Reto 0). Publica `empleado.retirado`. Un empleado ya
+`RETIRADO` no puede retirarse otra vez (`400 EMPLOYEE_RETIRED`):
+
+```bash
+curl -i -X DELETE http://localhost:8080/empleados/E001
+curl -i http://localhost:8080/empleados/E001
+# estado: "RETIRADO", fechaRetiro: "2026-...Z" — el registro sigue existiendo
+```
+
+Auditoría de retiros — `GET /empleados` acepta filtros opcionales por query string. `desde`/`hasta`
+(formato `YYYY-MM-DD`, inclusivos) filtran por `fechaRetiro`, así que solo tienen efecto real
+combinados con `estado=RETIRADO` (son los únicos empleados con esa fecha):
+
+```bash
+curl -i "http://localhost:8080/empleados?estado=RETIRADO"
+curl -i "http://localhost:8080/empleados?estado=RETIRADO&desde=2026-01-01&hasta=2026-06-30"
+```
+
+`desde` posterior a `hasta`, o un `estado` fuera de `ACTIVO`/`EN_VACACIONES`/`RETIRADO`, responden
+`400 VALIDATION_ERROR`.
+
 ## Persistencia
 
 La primera migración crea:
@@ -202,6 +247,9 @@ La primera migración crea:
 - Restricción de estados `ACTIVO`, `EN_VACACIONES` y `RETIRADO`.
 - Índices para `departamento_id` y `estado`.
 - Trazabilidad mediante `created_at` y `updated_at`.
+
+La segunda migración (Reto 4) agrega `fecha_retiro TIMESTAMPTZ NULL` y su índice, para soportar la
+baja lógica y el filtro de auditoría por rango de fechas.
 
 El código realiza validaciones descriptivas y PostgreSQL mantiene las restricciones como garantía
 final ante solicitudes concurrentes. El servicio utiliza un pool de conexiones y consultas
@@ -234,8 +282,9 @@ Para verificar:
 docker compose ps
 ```
 
-Dentro de Docker, PostgreSQL se resuelve como `database-empleados:5432`; `localhost:5433` se usa
-solo desde Windows. Compose espera a que PostgreSQL esté `healthy`. El servicio aplica migraciones
+Dentro de Docker, PostgreSQL se resuelve como `database-empleados:5432`. Ese puerto no se publica al
+host en ningún sistema operativo: la única forma de acceder a los datos es a través de este
+servicio. Compose espera a que PostgreSQL esté `healthy`. El servicio aplica migraciones
 antes de iniciar, usa una imagen multietapa y ejecuta Node con un usuario sin privilegios. El acceso
 externo debe realizarse por `http://localhost:8080`; el Gateway enruta `/empleados/*` y
 `/departamentos/*` hacia los servicios internos.
@@ -249,10 +298,11 @@ responde tras los reintentos se rechaza el alta con `503 DEPARTMENT_SERVICE_UNAV
 forma no se persisten referencias sin validar y empleados nunca accede a la base de datos de
 departamentos.
 
-Variables nuevas:
+Variables nuevas (valor real usado dentro de Docker; `http://localhost:8081` ya no es alcanzable
+porque `departamentos-service` no publica puerto al host):
 
 ```dotenv
-DEPARTMENTS_SERVICE_URL=http://localhost:8081
+DEPARTMENTS_SERVICE_URL=http://departamentos-service
 DEPARTMENTS_TIMEOUT_MS=2000
 DEPARTMENTS_MAX_ATTEMPTS=3
 DEPARTMENTS_RETRY_BASE_DELAY_MS=1000
@@ -309,14 +359,62 @@ Las pruebas simulan respuestas de departamentos y verifican `CLOSED`, `404`, `OP
 con recuperación y `HALF_OPEN` con fallo, sin modificar PostgreSQL ni depender de esperar los
 30 segundos de producción.
 
+### Publicación de eventos (Reto 4)
+
+Tras persistir exitosamente un alta (`POST /empleados`), una actualización (`PUT /empleados/{id}`)
+o un retiro (`DELETE /empleados/{id}`), el servicio publica `empleado.creado`,
+`empleado.actualizado` o `empleado.retirado` respectivamente en RabbitMQ. El
+contrato completo del envelope y del payload está en `docs/event-catalog.md` del
+repositorio [rhm-database-infrastructure](https://github.com/Microservicios-RHM/rhm-database-infrastructure)
+(es un repositorio separado, por eso no hay un enlace relativo); aquí solo se documenta la
+implementación.
+
+Variables nuevas:
+
+```dotenv
+BROKER_URL=amqp://admin:admin@message-broker:5672
+BROKER_EXCHANGE=rhm.events
+BROKER_CONNECT_MAX_ATTEMPTS=5
+BROKER_CONNECT_RETRY_DELAY_MS=1000
+```
+
+Al arrancar, el servicio intenta conectarse a RabbitMQ con reintentos y backoff (igual que hace con
+PostgreSQL), pero a diferencia de la base de datos **no es una dependencia dura**: si el broker no
+está disponible tras agotar los intentos, el servicio sigue arrancando de todas formas. Cada
+`RegisterEmployee.execute()` primero persiste el empleado y solo después intenta publicar el
+evento; `EventPublisher.publish()` nunca rechaza — un fallo (broker caído, canal cerrado, etc.) se
+registra con Pino como `error` y la petición HTTP sigue respondiendo `201`, tal como exige el
+enunciado ("si la publicación del evento falla, el servicio debe registrar el error pero no
+revertir la operación de base de datos").
+
+Arquitectura de la implementación:
+
+```text
+src/domain/gateways/event-publisher.gateway.ts       Puerto EventPublisher (dominio)
+src/infrastructure/messaging/rabbitmq/
+├── rabbitmq.connection.ts        Conexión/canal con reconexión perezosa
+└── rabbitmq-event.publisher.ts   Adaptador: construye el envelope y publica
+```
+
+El exchange (`rhm.events`, tipo `topic`, durable) lo declara este servicio al publicar
+(`assertExchange`, idempotente). Las colas de los consumidores (`notificaciones-service`,
+`perfiles-service`, `vacaciones-service`) se declaran en cada uno de esos servicios, no aquí —
+así el fan-out no depende de que este servicio conozca a sus consumidores.
+
+Para verificar manualmente: con el stack levantado, `POST /empleados` y luego abrir
+`http://localhost:15672` → `Exchanges` → `rhm.events` → pestaña `Publish message rate`, donde
+debe verse un pico de 1 mensaje por cada alta.
+
 ## Arquitectura
 
 ```text
 src/
-├── domain/          Entidad, errores y contrato del repositorio
+├── domain/          Entidad, errores, y contratos (repositorio, departamentos, eventos)
 ├── application/     Casos de uso de registro y consulta
 └── infrastructure/
-    ├── http/        Controladores, rutas, schemas y errores HTTP
+    ├── http/        Controladores, rutas, schemas, errores HTTP y cliente de departamentos
+    ├── messaging/
+    │   └── rabbitmq/ Conexión y publicador de eventos
     └── persistence/
         └── postgres/ Cliente, repositorio y migraciones PostgreSQL
 ```
