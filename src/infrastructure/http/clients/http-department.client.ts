@@ -1,4 +1,5 @@
 import type { Logger } from 'pino';
+import CircuitBreaker from 'opossum';
 import type { DepartmentGateway } from '../../../domain/gateways/department.gateway.ts';
 import { AppError } from '../../../domain/errors/app.error.ts';
 import { HTTP_STATUS } from '../../../shared/constants/http-status.constants.ts';
@@ -11,11 +12,14 @@ export interface DepartmentClientConfig {
   readonly maxAttempts: number;
   readonly retryBaseDelayMs: number;
   readonly totalTimeoutMs: number;
+  readonly circuitBreakerThreshold: number;
+  readonly circuitBreakerResetTimeoutMs: number;
 }
 
 export class HttpDepartmentClient implements DepartmentGateway {
   private readonly config: DepartmentClientConfig;
   private readonly logger: Logger;
+  private readonly circuitBreaker: CircuitBreaker<[string], boolean>;
 
   constructor(
     config: DepartmentClientConfig,
@@ -23,9 +27,37 @@ export class HttpDepartmentClient implements DepartmentGateway {
   ) {
     this.config = config;
     this.logger = logger;
+    this.circuitBreaker = new CircuitBreaker(
+      (id: string) => this.executeDepartmentValidation(id),
+      {
+        name: 'department-validation',
+        timeout: false,
+        volumeThreshold: this.config.circuitBreakerThreshold,
+        errorThresholdPercentage: 50,
+        rollingCountTimeout: 30_000,
+        rollingCountBuckets: 10,
+        resetTimeout: this.config.circuitBreakerResetTimeoutMs,
+      },
+    );
+    this.registerCircuitBreakerLogging();
   }
 
   async existsById(id: string): Promise<boolean> {
+    try {
+      return await this.circuitBreaker.fire(id);
+    } catch (error) {
+      if (this.isCircuitOpenError(error)) {
+        this.logger.warn(
+          { departmentId: id },
+          'Department validation fallback executed because the circuit is OPEN',
+        );
+        throw this.departmentServiceUnavailableError();
+      }
+      throw error;
+    }
+  }
+
+  private async validateDepartment(id: string): Promise<boolean> {
     const url = `${this.config.baseUrl}/departamentos/${encodeURIComponent(id)}`;
     const deadline = Date.now() + this.config.totalTimeoutMs;
 
@@ -54,11 +86,44 @@ export class HttpDepartmentClient implements DepartmentGateway {
       }
     }
 
-    throw new AppError(
+    throw this.departmentServiceUnavailableError();
+  }
+
+  private async executeDepartmentValidation(id: string): Promise<boolean> {
+    return this.validateDepartment(id);
+  }
+
+  private departmentServiceUnavailableError(): AppError {
+    return new AppError(
       RESPONSE_MESSAGES.department.unavailable,
       HTTP_STATUS.SERVICE_UNAVAILABLE,
       ERROR_CODES.DEPARTMENT_SERVICE_UNAVAILABLE,
     );
+  }
+
+  private isCircuitOpenError(error: unknown): boolean {
+    return error instanceof Error && 'code' in error && error.code === 'EOPENBREAKER';
+  }
+
+  private registerCircuitBreakerLogging(): void {
+    this.circuitBreaker.on('open', () => {
+      this.logger.warn('Department validation circuit breaker OPEN');
+    });
+    this.circuitBreaker.on('halfOpen', () => {
+      this.logger.info('Department validation circuit breaker HALF_OPEN');
+    });
+    this.circuitBreaker.on('close', () => {
+      this.logger.info('Department validation circuit breaker CLOSED');
+    });
+    this.circuitBreaker.on('success', (_result, latencyMs) => {
+      this.logger.info({ latencyMs }, 'Department validation circuit breaker call succeeded');
+    });
+    this.circuitBreaker.on('failure', (error, latencyMs) => {
+      this.logger.warn({ err: error, latencyMs }, 'Department validation circuit breaker call failed');
+    });
+    this.circuitBreaker.on('reject', (error) => {
+      this.logger.warn({ err: error }, 'Department validation rejected because the circuit is OPEN');
+    });
   }
 
   private async delay(milliseconds: number): Promise<void> {

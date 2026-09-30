@@ -27,6 +27,8 @@ const environmentSchema = z.object({
   DEPARTMENTS_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
   DEPARTMENTS_RETRY_BASE_DELAY_MS: z.coerce.number().int().min(100).max(10_000).default(1000),
   DEPARTMENTS_TOTAL_TIMEOUT_MS: z.coerce.number().int().min(100).max(120_000).default(9000),
+  DEPARTMENTS_CIRCUIT_BREAKER_THRESHOLD: z.coerce.number().int().min(1).max(100).default(3),
+  DEPARTMENTS_CIRCUIT_BREAKER_RESET_TIMEOUT_MS: z.coerce.number().int().min(100).max(120_000).default(30_000),
 }).superRefine((environment, context) => {
   if (environment.NODE_ENV === 'production' && environment.LOG_PRETTY === 'true') {
     context.addIssue({
@@ -68,6 +70,8 @@ export interface AppConfig {
     readonly maxAttempts: number;
     readonly retryBaseDelayMs: number;
     readonly totalTimeoutMs: number;
+    readonly circuitBreakerThreshold: number;
+    readonly circuitBreakerResetTimeoutMs: number;
   };
 }
 
@@ -98,6 +102,8 @@ export function loadConfig(): AppConfig {
       maxAttempts: env.DEPARTMENTS_MAX_ATTEMPTS,
       retryBaseDelayMs: env.DEPARTMENTS_RETRY_BASE_DELAY_MS,
       totalTimeoutMs: env.DEPARTMENTS_TOTAL_TIMEOUT_MS,
+      circuitBreakerThreshold: env.DEPARTMENTS_CIRCUIT_BREAKER_THRESHOLD,
+      circuitBreakerResetTimeoutMs: env.DEPARTMENTS_CIRCUIT_BREAKER_RESET_TIMEOUT_MS,
     },
     database: {
       host: env.DB_HOST,
