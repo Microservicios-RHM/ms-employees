@@ -35,7 +35,8 @@ async function bootstrap(): Promise<void> {
 
   const repository = new PostgresEmployeeRepository(pool, config.database.schema);
   const departmentClient = new HttpDepartmentClient(config.departments, logger);
-  const app = createApp(repository, departmentClient, logger);
+  await departmentClient.warmUpCatalog();
+  const app = createApp(repository, departmentClient, logger, departmentClient, config.cacheAdminToken);
   const server = http.createServer(app);
 
   server.listen(config.port, '0.0.0.0', () => {

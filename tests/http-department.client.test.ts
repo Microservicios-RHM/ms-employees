@@ -14,6 +14,7 @@ const createConfig = (resetTimeoutMs = 30): DepartmentClientConfig => ({
   totalTimeoutMs: 100,
   circuitBreakerThreshold: 3,
   circuitBreakerResetTimeoutMs: resetTimeoutMs,
+  cacheTtlSeconds: 60,
 });
 
 afterEach(() => {
@@ -31,7 +32,7 @@ describe('HttpDepartmentClient circuit breaker', () => {
     const client = new HttpDepartmentClient(createConfig(), logger);
 
     assert.equal(await client.existsById('IT'), true);
-    assert.equal(calls, 1);
+    assert.equal(calls, 2);
   });
 
   test('trata 404 como respuesta válida y no abre el circuito', async () => {
@@ -49,6 +50,38 @@ describe('HttpDepartmentClient circuit breaker', () => {
     assert.equal(calls, 4);
   });
 
+  test('usa una validación positiva en caché cuando Departamentos queda indisponible', async () => {
+    let calls = 0;
+    let available = true;
+    globalThis.fetch = async (input) => {
+      calls += 1;
+      if (String(input).endsWith('/departamentos')) {
+        return { ok: true, status: 200, json: async () => ({ data: [{ id: 'IT' }] }) } as Response;
+      }
+      if (!available) throw new Error('departments unavailable');
+      return { ok: true, status: 200 } as Response;
+    };
+
+    const client = new HttpDepartmentClient(createConfig(), logger);
+    await client.warmUpCatalog();
+
+    available = false;
+    assert.equal(await client.existsById('IT'), true);
+    assert.equal(calls, 2);
+  });
+
+  test('mantiene 503 si Departamentos está indisponible y no existe caché', async () => {
+    globalThis.fetch = async () => {
+      throw new Error('departments unavailable');
+    };
+
+    const client = new HttpDepartmentClient(createConfig(), logger);
+    await assert.rejects(
+      client.existsById('IT'),
+      (error: unknown) => error instanceof Error && 'code' in error && error.code === 'DEPARTMENT_SERVICE_UNAVAILABLE',
+    );
+  });
+
   test('abre por tasa de fallos de la ventana, incluso si hubo un éxito previo', async () => {
     let calls = 0;
     let available = false;
@@ -59,12 +92,12 @@ describe('HttpDepartmentClient circuit breaker', () => {
     };
 
     const client = new HttpDepartmentClient(createConfig(), logger);
-    await assert.rejects(client.existsById('IT'));
+    await assert.rejects(client.existsById('FIN'));
     available = true;
-    assert.equal(await client.existsById('IT'), true);
+    assert.equal(await client.existsById('HR'), true);
     available = false;
     await assert.rejects(client.existsById('IT'));
-    assert.equal(calls, 3);
+    assert.equal(calls, 4);
   });
 
   test('abre tras tres fallos y rechaza sin ejecutar HTTP mientras está OPEN', async () => {
@@ -108,9 +141,9 @@ describe('HttpDepartmentClient circuit breaker', () => {
     await new Promise((resolve) => setTimeout(resolve, 40));
     available = true;
     assert.equal(await client.existsById('IT'), true);
-    assert.equal(calls, 4);
-    assert.equal(await client.existsById('IT'), true);
     assert.equal(calls, 5);
+    assert.equal(await client.existsById('IT'), true);
+    assert.equal(calls, 7);
   });
 
   test('mantiene OPEN si la prueba HALF_OPEN vuelve a fallar', async () => {
