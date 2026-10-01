@@ -309,7 +309,16 @@ DEPARTMENTS_RETRY_BASE_DELAY_MS=1000
 DEPARTMENTS_TOTAL_TIMEOUT_MS=9000
 DEPARTMENTS_CIRCUIT_BREAKER_THRESHOLD=3
 DEPARTMENTS_CIRCUIT_BREAKER_RESET_TIMEOUT_MS=30000
+DEPARTMENTS_CACHE_TTL_SECONDS=300
 ```
+
+### Caché de respaldo de Departamentos
+
+El cliente HTTP usa `node-cache` como caché local. Solo una respuesta `2xx` guarda
+`department:{id}` durante el TTL configurado; los `404` y errores no se almacenan. Si
+Departamentos falla, agota reintentos o el Circuit Breaker está `OPEN`, una entrada vigente permite
+registrar el empleado. Sin esa entrada se mantiene `503 DEPARTMENT_SERVICE_UNAVAILABLE`. La caché
+es local por instancia y debe sustituirse por Redis u otra caché compartida al escalar el servicio.
 
 En Docker, la URL es `http://departamentos-service` porque se utiliza el nombre DNS interno y el
 puerto interno del contenedor, no `localhost` ni el puerto publicado al host.
@@ -329,7 +338,7 @@ DEPARTMENTS_CIRCUIT_BREAKER_RESET_TIMEOUT_MS=30000
 ```
 
 `DEPARTMENTS_CIRCUIT_BREAKER_THRESHOLD` establece el volumen mínimo de tres operaciones; cuando
-la tasa de fallos alcanza 50 % en la ventana de 30 segundos, `opossum` abre el circuito.
+la tasa de fallos alcanza 50 % en la ventana de 60 segundos, `opossum` abre el circuito.
 `DEPARTMENTS_CIRCUIT_BREAKER_RESET_TIMEOUT_MS` mantiene el circuito abierto durante 30 segundos
 antes de permitir una llamada de prueba en `HALF_OPEN`. El timeout de opossum está
 desactivado deliberadamente: el timeout por intento y el timeout total existentes siguen siendo

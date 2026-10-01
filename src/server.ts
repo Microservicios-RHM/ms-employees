@@ -48,7 +48,15 @@ async function bootstrap(): Promise<void> {
     EVENT_PRODUCER,
     logger,
   );
-  const app = createApp(repository, departmentClient, eventPublisher, logger);
+  await departmentClient.warmUpCatalog();
+  const app = createApp(
+    repository,
+    departmentClient,
+    eventPublisher,
+    logger,
+    departmentClient,
+    config.cacheAdminToken,
+  );
   const server = http.createServer(app);
 
   server.listen(config.port, '0.0.0.0', () => {

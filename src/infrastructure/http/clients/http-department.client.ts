@@ -1,5 +1,6 @@
 import type { Logger } from 'pino';
 import CircuitBreaker from 'opossum';
+import NodeCache from 'node-cache';
 import type { DepartmentGateway } from '../../../domain/gateways/department.gateway.ts';
 import { AppError } from '../../../domain/errors/app.error.ts';
 import { HTTP_STATUS } from '../../../shared/constants/http-status.constants.ts';
@@ -14,19 +15,29 @@ export interface DepartmentClientConfig {
   readonly totalTimeoutMs: number;
   readonly circuitBreakerThreshold: number;
   readonly circuitBreakerResetTimeoutMs: number;
+  readonly cacheTtlSeconds: number;
 }
 
-export class HttpDepartmentClient implements DepartmentGateway {
+export interface DepartmentCatalogCacheManager {
+  warmUpCatalog(): Promise<void>;
+  clearCatalog(): number;
+}
+
+export class HttpDepartmentClient implements DepartmentGateway, DepartmentCatalogCacheManager {
+  private static readonly catalogCacheKey = 'departments:catalog';
   private readonly config: DepartmentClientConfig;
   private readonly logger: Logger;
   private readonly circuitBreaker: CircuitBreaker<[string], boolean>;
+  private readonly cache: NodeCache;
 
   constructor(
     config: DepartmentClientConfig,
     logger: Logger,
+    cache = new NodeCache({ stdTTL: config.cacheTtlSeconds, useClones: false }),
   ) {
     this.config = config;
     this.logger = logger;
+    this.cache = cache;
     this.circuitBreaker = new CircuitBreaker(
       (id: string) => this.executeDepartmentValidation(id),
       {
@@ -34,7 +45,7 @@ export class HttpDepartmentClient implements DepartmentGateway {
         timeout: false,
         volumeThreshold: this.config.circuitBreakerThreshold,
         errorThresholdPercentage: 50,
-        rollingCountTimeout: 30_000,
+        rollingCountTimeout: 60_000,
         rollingCountBuckets: 10,
         resetTimeout: this.config.circuitBreakerResetTimeoutMs,
       },
@@ -44,12 +55,22 @@ export class HttpDepartmentClient implements DepartmentGateway {
 
   async existsById(id: string): Promise<boolean> {
     try {
-      return await this.circuitBreaker.fire(id);
+      const exists = await this.circuitBreaker.fire(id);
+      if (exists) await this.refreshCatalogIfMissing();
+      return exists;
     } catch (error) {
-      if (this.isCircuitOpenError(error)) {
+      if (this.isCircuitOpenError(error) || this.isDepartmentServiceUnavailableError(error)) {
+        if (this.isDepartmentCached(id)) {
+          this.logger.warn(
+            { departmentId: id },
+            'Department validation served from cache because the service is unavailable',
+          );
+          return true;
+        }
+
         this.logger.warn(
           { departmentId: id },
-          'Department validation fallback executed because the circuit is OPEN',
+          'Department validation fallback cache miss because the service is unavailable',
         );
         throw this.departmentServiceUnavailableError();
       }
@@ -93,6 +114,20 @@ export class HttpDepartmentClient implements DepartmentGateway {
     return this.validateDepartment(id);
   }
 
+  async warmUpCatalog(): Promise<void> {
+    try {
+      await this.refreshCatalog();
+    } catch (error) {
+      this.logger.warn({ err: error }, 'Department catalog cache warm-up failed');
+    }
+  }
+
+  clearCatalog(): number {
+    const removed = this.cache.del(HttpDepartmentClient.catalogCacheKey);
+    this.logger.info({ removed }, 'Department catalog cache cleared');
+    return removed;
+  }
+
   private departmentServiceUnavailableError(): AppError {
     return new AppError(
       RESPONSE_MESSAGES.department.unavailable,
@@ -103,6 +138,53 @@ export class HttpDepartmentClient implements DepartmentGateway {
 
   private isCircuitOpenError(error: unknown): boolean {
     return error instanceof Error && 'code' in error && error.code === 'EOPENBREAKER';
+  }
+
+  private isDepartmentServiceUnavailableError(error: unknown): boolean {
+    return error instanceof AppError && error.code === ERROR_CODES.DEPARTMENT_SERVICE_UNAVAILABLE;
+  }
+
+  private async refreshCatalog(): Promise<void> {
+    const response = await fetch(`${this.config.baseUrl}/departamentos`, {
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(this.config.timeoutMs),
+    });
+    if (!response.ok) throw new Error(`Department catalog returned HTTP ${response.status}`);
+
+    const payload: unknown = await response.json();
+    const departmentIds = this.extractDepartmentIds(payload);
+    this.cache.set(HttpDepartmentClient.catalogCacheKey, departmentIds);
+    this.logger.info(
+      { departments: departmentIds.length, ttlSeconds: this.config.cacheTtlSeconds },
+      'Department catalog cache refreshed',
+    );
+  }
+
+  private async refreshCatalogIfMissing(): Promise<void> {
+    if (this.cache.has(HttpDepartmentClient.catalogCacheKey)) return;
+
+    try {
+      await this.refreshCatalog();
+    } catch (error) {
+      this.logger.warn({ err: error }, 'Department catalog refresh failed after successful validation');
+    }
+  }
+
+  private isDepartmentCached(id: string): boolean {
+    const departmentIds = this.cache.get<readonly string[]>(HttpDepartmentClient.catalogCacheKey);
+    return departmentIds?.includes(id) ?? false;
+  }
+
+  private extractDepartmentIds(payload: unknown): string[] {
+    if (!payload || typeof payload !== 'object' || !('data' in payload) || !Array.isArray(payload.data)) {
+      throw new Error('Department catalog response has an invalid format');
+    }
+
+    return payload.data.flatMap((department) => (
+      department && typeof department === 'object' && 'id' in department && typeof department.id === 'string'
+        ? [department.id]
+        : []
+    ));
   }
 
   private registerCircuitBreakerLogging(): void {

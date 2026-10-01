@@ -33,6 +33,8 @@ const environmentSchema = z.object({
   BROKER_EXCHANGE: z.string().trim().min(1).default('rhm.events'),
   BROKER_CONNECT_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(5),
   BROKER_CONNECT_RETRY_DELAY_MS: z.coerce.number().int().min(100).max(30_000).default(1000),
+  DEPARTMENTS_CACHE_TTL_SECONDS: z.coerce.number().int().min(1).max(86_400).default(300),
+  CACHE_ADMIN_TOKEN: z.string().min(16).default('local_cache_admin_token'),
 }).superRefine((environment, context) => {
   if (environment.NODE_ENV === 'production' && environment.LOG_PRETTY === 'true') {
     context.addIssue({
@@ -68,6 +70,7 @@ export interface AppConfig {
   readonly port: number;
   readonly database: DatabaseConfig;
   readonly logging: LoggingConfig;
+  readonly cacheAdminToken: string;
   readonly departments: {
     readonly baseUrl: string;
     readonly timeoutMs: number;
@@ -76,6 +79,7 @@ export interface AppConfig {
     readonly totalTimeoutMs: number;
     readonly circuitBreakerThreshold: number;
     readonly circuitBreakerResetTimeoutMs: number;
+    readonly cacheTtlSeconds: number;
   };
   readonly broker: {
     readonly url: string;
@@ -106,6 +110,7 @@ export function loadConfig(): AppConfig {
       level: env.LOG_LEVEL,
       pretty: env.LOG_PRETTY === 'true',
     },
+    cacheAdminToken: env.CACHE_ADMIN_TOKEN,
     departments: {
       baseUrl: env.DEPARTMENTS_SERVICE_URL.replace(/\/$/, ''),
       timeoutMs: env.DEPARTMENTS_TIMEOUT_MS,
@@ -114,6 +119,7 @@ export function loadConfig(): AppConfig {
       totalTimeoutMs: env.DEPARTMENTS_TOTAL_TIMEOUT_MS,
       circuitBreakerThreshold: env.DEPARTMENTS_CIRCUIT_BREAKER_THRESHOLD,
       circuitBreakerResetTimeoutMs: env.DEPARTMENTS_CIRCUIT_BREAKER_RESET_TIMEOUT_MS,
+      cacheTtlSeconds: env.DEPARTMENTS_CACHE_TTL_SECONDS,
     },
     broker: {
       url: env.BROKER_URL,

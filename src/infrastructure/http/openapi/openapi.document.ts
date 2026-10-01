@@ -43,6 +43,7 @@ export const openApiDocument = {
   tags: [
     { name: 'Health', description: 'Estado operativo del microservicio' },
     { name: 'Empleados', description: 'Registro y consulta de empleados' },
+    { name: 'Administración', description: 'Operaciones administrativas protegidas' },
   ],
   paths: {
     '/health': {
@@ -196,6 +197,23 @@ export const openApiDocument = {
               },
             },
           },
+        },
+      },
+    },
+    '/empleados/cache/departamentos': {
+      delete: {
+        tags: ['Administración'],
+        summary: 'Limpiar el catálogo de departamentos en caché',
+        operationId: 'clearDepartmentCatalogCache',
+        parameters: [{
+          name: 'X-Cache-Admin-Token',
+          in: 'header',
+          required: true,
+          schema: { type: 'string' },
+        }],
+        responses: {
+          '200': { description: 'Caché limpiada correctamente.' },
+          '401': { description: 'Token de administración inválido.' },
         },
       },
     },
