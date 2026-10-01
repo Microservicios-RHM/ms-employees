@@ -4,11 +4,12 @@ import { pathToFileURL } from 'node:url';
 import { loadConfig } from '../../../../config/environment.config.ts';
 import { createPostgresPool } from '../postgres.client.ts';
 import { createEmployeesMigration } from './001-create-employees-table.migration.ts';
+import { addFechaRetiroMigration } from './002-add-fecha-retiro.migration.ts';
 
 export async function runMigrations(pool: pg.Pool, schema: string): Promise<string[]> {
   const client = await pool.connect();
   const appliedMigrations: string[] = [];
-  const migrations = [createEmployeesMigration(schema)];
+  const migrations = [createEmployeesMigration(schema), addFechaRetiroMigration(schema)];
   try {
     await client.query('SELECT pg_advisory_lock($1)', [728_401]);
     await client.query(`CREATE SCHEMA IF NOT EXISTS "${schema}" AUTHORIZATION CURRENT_USER`);

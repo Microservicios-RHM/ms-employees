@@ -27,6 +27,7 @@
   },
   "homepage": "https://github.com/Microservicios-RHM/ms-employees#readme",
   "dependencies": {
+    "amqplib": "^0.10.5",
     "express": "^5.2.1",
     "helmet": "^8.3.0",
     "node-cache": "^5.1.2",
@@ -38,6 +39,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/amqplib": "^0.10.5",
     "@types/express": "^5.0.6",
     "@types/node": "^26.1.2",
     "@types/opossum": "^8.1.9",

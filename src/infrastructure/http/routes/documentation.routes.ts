@@ -6,12 +6,17 @@ import { HTTP_STATUS } from '../../../shared/constants/http-status.constants.ts'
 
 const documentationRouter = Router();
 
-documentationRouter.get('/openapi.json', (_req, res) => {
+// Montadas bajo /empleados para poder vivir detrás del Gateway sin reescritura de rutas: el
+// Gateway ya proxea /empleados/* preservando la ruta, así que /empleados/docs y
+// /empleados/openapi.json quedan alcanzables automáticamente en http://localhost:8080.
+// Se registran antes que el router de empleados (ver app.ts), así que "docs" nunca se interpreta
+// como un :id de empleado.
+documentationRouter.get('/empleados/openapi.json', (_req, res) => {
   res.status(HTTP_STATUS.OK).json(openApiDocument);
 });
 
 documentationRouter.use(
-  '/docs',
+  '/empleados/docs',
   helmet({ contentSecurityPolicy: false }),
   swaggerUi.serve,
   swaggerUi.setup(openApiDocument, {

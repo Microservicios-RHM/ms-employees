@@ -1,4 +1,4 @@
-import type { Employee } from '../../domain/entities/employee.entity.ts';
+import type { Employee, EmployeeListFilters } from '../../domain/entities/employee.entity.ts';
 import type { EmployeeRepository } from '../../domain/repositories/employee.repository.ts';
 
 export class ListEmployees {
@@ -8,7 +8,7 @@ export class ListEmployees {
     this.repository = repository;
   }
 
-  execute(): Promise<Employee[]> {
-    return this.repository.findAll();
+  execute(filters: EmployeeListFilters = {}): Promise<Employee[]> {
+    return this.repository.findAll(filters);
   }
 }

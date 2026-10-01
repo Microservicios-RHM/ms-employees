@@ -7,10 +7,14 @@ import { runMigrations } from './infrastructure/persistence/postgres/migrations/
 import { createLogger } from './infrastructure/logging/pino.logger.ts';
 import { waitForPostgres } from './infrastructure/persistence/postgres/postgres-readiness.ts';
 import { HttpDepartmentClient } from './infrastructure/http/clients/http-department.client.ts';
+import { RabbitMqConnection } from './infrastructure/messaging/rabbitmq/rabbitmq.connection.ts';
+import { RabbitmqEventPublisher } from './infrastructure/messaging/rabbitmq/rabbitmq-event.publisher.ts';
+import { EVENT_PRODUCER } from './shared/constants/event-types.constants.ts';
 
 const config = loadConfig();
 const logger = createLogger(config.logging);
 const pool = createPostgresPool(config.database, logger);
+const brokerConnection = new RabbitMqConnection(config.broker, logger);
 
 async function bootstrap(): Promise<void> {
   logger.info(
@@ -33,10 +37,26 @@ async function bootstrap(): Promise<void> {
   }
   logger.info('PostgreSQL connection ready');
 
+  logger.info({ exchange: config.broker.exchange }, 'Connecting to RabbitMQ');
+  await brokerConnection.connect();
+
   const repository = new PostgresEmployeeRepository(pool, config.database.schema);
   const departmentClient = new HttpDepartmentClient(config.departments, logger);
+  const eventPublisher = new RabbitmqEventPublisher(
+    brokerConnection,
+    config.broker.exchange,
+    EVENT_PRODUCER,
+    logger,
+  );
   await departmentClient.warmUpCatalog();
-  const app = createApp(repository, departmentClient, logger, departmentClient, config.cacheAdminToken);
+  const app = createApp(
+    repository,
+    departmentClient,
+    eventPublisher,
+    logger,
+    departmentClient,
+    config.cacheAdminToken,
+  );
   const server = http.createServer(app);
 
   server.listen(config.port, '0.0.0.0', () => {
@@ -50,6 +70,7 @@ async function bootstrap(): Promise<void> {
         logger.error({ err: error }, 'HTTP server shutdown failed');
         process.exitCode = 1;
       }
+      await brokerConnection.close();
       await pool.end();
       logger.info('Employee service stopped');
       process.exit();
@@ -63,6 +84,7 @@ async function bootstrap(): Promise<void> {
 
 bootstrap().catch(async (error: unknown) => {
   logger.fatal({ err: error }, 'Employee service failed to start');
+  await brokerConnection.close().catch(() => undefined);
   await pool.end().catch(() => undefined);
   process.exit(1);
 });

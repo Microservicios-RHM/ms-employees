@@ -1,6 +1,8 @@
 export const RESPONSE_MESSAGES = {
   employee: {
     registered: 'Empleado registrado correctamente',
+    updated: 'Empleado actualizado correctamente',
+    retired: 'Empleado retirado correctamente',
     retrieved: 'Empleado consultado correctamente',
     listed: 'Empleados consultados correctamente',
     notFound: (id: string) => `El empleado con id ${id} no existe`,
@@ -8,6 +10,8 @@ export const RESPONSE_MESSAGES = {
     duplicateEmail: (email: string) => `El email ${email} ya está registrado`,
     duplicateEmployeeNumber: (employeeNumber: string) =>
       `El número de empleado ${employeeNumber} ya está registrado`,
+    cannotModifyRetired: (id: string) =>
+      `El empleado con id ${id} está retirado y no puede modificarse`,
   },
   service: {
     available: 'Servicio disponible',
@@ -26,6 +30,8 @@ export const RESPONSE_MESSAGES = {
     invalidEmail: 'email debe tener un formato válido',
     invalidEntryDate: 'fechaIngreso debe tener el formato YYYY-MM-DD',
     invalidInitialStatus: 'estado debe ser ACTIVO en este reto',
+    invalidDate: (field: string) => `${field} debe tener el formato YYYY-MM-DD`,
+    invalidDateRange: 'desde debe ser anterior o igual a hasta',
   },
   resource: {
     notFound: 'Recurso no encontrado',
