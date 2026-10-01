@@ -15,11 +15,15 @@ import { HTTP_STATUS } from './shared/constants/http-status.constants.ts';
 import { ERROR_CODES } from './shared/constants/error-codes.constants.ts';
 import { RESPONSE_MESSAGES } from './shared/constants/response-messages.constants.ts';
 import type { DepartmentGateway } from './domain/gateways/department.gateway.ts';
+import type { DepartmentCatalogCacheManager } from './infrastructure/http/clients/http-department.client.ts';
+import { createDepartmentCacheRouter } from './infrastructure/http/routes/department-cache.routes.ts';
 
 export function createApp(
   repository: EmployeeRepository,
   departmentGateway: DepartmentGateway,
   logger: Logger,
+  cacheManager?: DepartmentCatalogCacheManager,
+  cacheAdminToken?: string,
 ) {
   const app = express();
   const registerEmployee = new RegisterEmployee(repository, departmentGateway);
@@ -38,6 +42,9 @@ export function createApp(
 
   app.use('/', healthRouter);
   app.use('/empleados', createEmployeeRouter(registerEmployee, getEmployeeById, listEmployees));
+  if (cacheManager && cacheAdminToken) {
+    app.use('/empleados', createDepartmentCacheRouter(cacheManager, cacheAdminToken));
+  }
 
   app.use((_req, res) => {
     sendError(
