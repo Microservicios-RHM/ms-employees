@@ -466,3 +466,46 @@ migration.runner.ts
 
 Los únicos puntos de entrada sin sufijo son `app.ts` y `server.ts`, nombres convencionales en
 aplicaciones Express.
+
+## Pruebas (Reto 6)
+
+```bash
+npm ci
+npm run test:ci           # unitarias + integración, con reportes y umbral de cobertura
+npm run test:unit         # solo unitarias: no necesitan Docker
+npm run test:integration  # solo integración (Testcontainers, necesita Docker)
+```
+
+| Reporte | Ruta | Formato |
+|---|---|---|
+| Resultados | `reports/junit.xml` | JUnit XML (reporter `junit` de `node:test`) |
+| Cobertura | `reports/lcov.info` | LCOV (el formato que lee SonarQube para JS/TS) |
+
+`npm run test:ci` termina con código distinto de cero si una prueba falla **o** si la cobertura de
+líneas cae por debajo del 70 % (`--test-coverage-lines=70`). Cobertura actual: 93,7 %.
+
+### Qué cubren
+
+- **Unitarias de casos de uso** (`tests/unit`): `RegisterEmployee` (unicidad de email sin distinguir
+  mayúsculas, de `numeroEmpleado` y de `id`; normalización; que la unicidad se valida antes de
+  llamar a departamentos; que un fallo no guarda ni publica), `RetireEmployee` (transición a
+  `RETIRADO` con `fechaRetiro`, retiro desde `EN_VACACIONES`, `RETIRADO` como estado terminal, 404),
+  `UpdateEmployee` y las consultas. Repositorio, cliente de departamentos y publicador son dobles
+  de `tests/support/test-doubles.ts`.
+- **API con dobles** (`tests/*.test.ts`, previas al Reto 6): rutas, validación y contrato de error.
+- **Integración** (`tests/integration`): `PostgresEmployeeRepository` contra PostgreSQL 17 levantado
+  con **Testcontainers**. Verifica migraciones idempotentes, mapeo completo, que el índice
+  `lower(email)`, el `UNIQUE` de `numero_empleado` y la clave primaria existan **en el schema**
+  (se llama a `save()` saltando las validaciones del caso de uso), el `CHECK` de estados y el filtro
+  de auditoría por estado y rango de `fechaRetiro`.
+
+### Decisiones
+
+- **Testcontainers** sobre una base embebida: el schema depende de un índice funcional
+  (`lower(email)`) y de códigos de error de PostgreSQL (`23505`, `23514`) que otro motor no
+  reproduce. Cuesta unos 15 s de arranque, aceptable para la fidelidad que da.
+- **Qué no se mide** (`--test-coverage-exclude`): `server.ts` (raíz de composición), el logger y
+  los clientes de conexión a PostgreSQL y RabbitMQ. Son cableado sin reglas de negocio.
+- **La trampa del 70 %.** Se desactivó a propósito la validación de email duplicado en
+  `RegisterEmployee`: 3 pruebas fallaron nombrando la regla. Las aserciones verifican códigos de
+  error, el estado persistido y los eventos publicados o su ausencia.

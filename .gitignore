@@ -142,3 +142,6 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Reportes de pruebas generados (Reto 6): se generan, no se versionan
+reports/
