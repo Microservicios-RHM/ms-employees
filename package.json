@@ -12,7 +12,11 @@
     "db:migrate": "node src/infrastructure/persistence/postgres/migrations/migration.runner.ts",
     "db:migrate:dist": "node dist/infrastructure/persistence/postgres/migrations/migration.runner.js",
     "test": "node --test",
-    "test:coverage": "node --test --experimental-test-coverage"
+    "test:coverage": "node --test --experimental-test-coverage",
+    "test:unit": "node --test \"tests/**/*.test.ts\"",
+    "test:integration": "node --test \"tests/integration/*.integration.ts\"",
+    "pretest:ci": "node -e \"require('node:fs').rmSync('reports',{recursive:true,force:true});require('node:fs').mkdirSync('reports')\"",
+    "test:ci": "node --test --experimental-test-coverage --test-coverage-lines=70 --test-coverage-include=\"src/**/*.ts\" --test-coverage-exclude=\"src/server.ts\" --test-coverage-exclude=\"src/infrastructure/logging/**\" --test-coverage-exclude=\"src/infrastructure/messaging/rabbitmq/rabbitmq.connection.ts\" --test-coverage-exclude=\"src/infrastructure/persistence/postgres/postgres.client.ts\" --test-coverage-exclude=\"src/infrastructure/persistence/postgres/postgres-readiness.ts\" --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=reports/junit.xml --test-reporter=lcov --test-reporter-destination=reports/lcov.info \"tests/**/*.test.ts\" \"tests/integration/*.integration.ts\""
   },
   "repository": {
     "type": "git",
@@ -39,6 +43,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@testcontainers/postgresql": "^11.7.1",
     "@types/amqplib": "^0.10.5",
     "@types/express": "^5.0.6",
     "@types/node": "^26.1.2",
