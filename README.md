@@ -414,6 +414,17 @@ Para verificar manualmente: con el stack levantado, `POST /empleados` y luego ab
 `http://localhost:15672` → `Exchanges` → `rhm.events` → pestaña `Publish message rate`, donde
 debe verse un pico de 1 mensaje por cada alta.
 
+### Autenticación en Swagger (Reto 5)
+
+Desde el Reto 5 todas las peticiones exigen un token, que valida el API Gateway. El documento
+OpenAPI declara el esquema de seguridad `BearerAuth`, así que la página de Swagger muestra el
+botón **Authorize**: se pega ahí el `accessToken` que devuelve `POST /auth/login` y el token viaja
+en cada petición de prueba.
+
+Es solo documentación. Este servicio no verifica la firma — de eso se encarga el Gateway, una sola
+vez para todo el ecosistema. Sin esta declaración el botón no existiría y cualquier "Try it out"
+respondería `401` sin forma de autenticarse.
+
 ## Arquitectura
 
 ```text

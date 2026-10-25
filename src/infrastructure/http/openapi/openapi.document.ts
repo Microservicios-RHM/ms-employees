@@ -40,6 +40,7 @@ export const openApiDocument = {
       'API para registrar y consultar empleados. Los datos son persistidos en PostgreSQL por el microservicio de empleados.',
   },
   servers: [{ url: '/', description: 'Servidor actual' }],
+  security: [{ BearerAuth: [] }],
   tags: [
     { name: 'Health', description: 'Estado operativo del microservicio' },
     { name: 'Empleados', description: 'Registro y consulta de empleados' },
@@ -391,6 +392,15 @@ export const openApiDocument = {
     },
   },
   components: {
+    securitySchemes: {
+      BearerAuth: {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description:
+          'Token obtenido en POST /auth/login a través del API Gateway. Pulse Authorize y pegue el valor de accessToken.',
+      },
+    },
     schemas: {
       Health: {
         type: 'object',
