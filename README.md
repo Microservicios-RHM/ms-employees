@@ -509,3 +509,25 @@ líneas cae por debajo del 70 % (`--test-coverage-lines=70`). Cobertura actual: 
 - **La trampa del 70 %.** Se desactivó a propósito la validación de email duplicado en
   `RegisterEmployee`: 3 pruebas fallaron nombrando la regla. Las aserciones verifican códigos de
   error, el estado persistido y los eventos publicados o su ausencia.
+
+## Integración continua (Reto 7)
+
+El pipeline de este servicio está en el [`Jenkinsfile`](Jenkinsfile) y corre en el Jenkins de
+[rhm-database-infrastructure](https://github.com/Microservicios-RHM/rhm-database-infrastructure)
+(http://localhost:9090, job `ms-employees`). Allí están el acceso, la tabla completa de reportes y las
+decisiones técnicas.
+
+```text
+Checkout → Build → Test → SonarQube → Quality Gate → Package → Publish → E2E Tests
+```
+
+| Archivo | Para qué |
+|---|---|
+| `Jenkinsfile` | Pipeline declarativo; Build y Test corren en `node:24-alpine` como agente efímero |
+| `sonar-project.properties` | Clave del proyecto, fuentes, reporte de cobertura y exclusiones para SonarQube |
+| `tsconfig.sonar.json` | tsconfig compatible con el analizador TypeScript de SonarQube 9.9 LTS (solo análisis) |
+
+- **Resultados**: `reports/junit.xml` → paso `junit` (pestaña *Tests* del build).
+- **Cobertura**: `reports/lcov.info` → `recordCoverage` (parser LCOV) y SonarQube (`sonar.javascript.lcov.reportPaths`).
+- **E2E**: la etapa levanta el sistema completo con la imagen `rhm/ms-employees:<build>-<sha7>` recién construida, corre la suite BDD de [e2e-tests](https://github.com/Microservicios-RHM/e2e-tests) y publica *Cucumber reports*, *Reporte BDD* y los logs del stack.
+- Una prueba fallida deja el build **UNSTABLE** y no se empaqueta; un Quality Gate fallido (cobertura < 70 %) o un Dockerfile roto lo dejan en **FAILURE**.
