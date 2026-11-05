@@ -1,0 +1,16 @@
+// Solo para el análisis de SonarQube 9.9 LTS, cuyo analizador trae un TypeScript anterior a varias
+// opciones de tsconfig.json (es2024, erasableSyntaxOnly, rewriteRelativeImportExtensions...).
+// No se usa para compilar ni para el typecheck.
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts"]
+}

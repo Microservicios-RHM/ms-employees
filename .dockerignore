@@ -7,3 +7,9 @@ coverage
 *.log
 README.md
 tests
+reports
+.scannerwork
+.e2e
+Jenkinsfile
+sonar-project.properties
+tsconfig.sonar.json
