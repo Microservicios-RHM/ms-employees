@@ -3,7 +3,7 @@ import { describe, test } from 'node:test';
 import request from 'supertest';
 import pino from 'pino';
 import { createApp } from '../src/app.ts';
-import type { Employee, EmployeeListFilters } from '../src/domain/entities/employee.entity.ts';
+import type { Employee, EmployeeListFilters, EmployeeStatus } from '../src/domain/entities/employee.entity.ts';
 import type { EmployeeRepository } from '../src/domain/repositories/employee.repository.ts';
 import type { DepartmentGateway } from '../src/domain/gateways/department.gateway.ts';
 import type { DomainEvent, EventPublisher } from '../src/domain/gateways/event-publisher.gateway.ts';
@@ -39,6 +39,14 @@ class TestEmployeeRepository implements EmployeeRepository {
   async update(item: Employee): Promise<Employee> {
     this.employees.set(item.id, item);
     return item;
+  }
+
+  async updateStatus(id: string, status: EmployeeStatus): Promise<Employee | undefined> {
+    const existing = this.employees.get(id);
+    if (!existing || existing.estado === 'RETIRADO') return undefined;
+    const updated = { ...existing, estado: status };
+    this.employees.set(id, updated);
+    return updated;
   }
 
   async retire(id: string, fechaRetiro: string): Promise<Employee> {

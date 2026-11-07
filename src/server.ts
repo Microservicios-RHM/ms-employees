@@ -9,7 +9,10 @@ import { waitForPostgres } from './infrastructure/persistence/postgres/postgres-
 import { HttpDepartmentClient } from './infrastructure/http/clients/http-department.client.ts';
 import { RabbitMqConnection } from './infrastructure/messaging/rabbitmq/rabbitmq.connection.ts';
 import { RabbitmqEventPublisher } from './infrastructure/messaging/rabbitmq/rabbitmq-event.publisher.ts';
-import { EVENT_PRODUCER } from './shared/constants/event-types.constants.ts';
+import { RabbitmqEventConsumer } from './infrastructure/messaging/rabbitmq/rabbitmq-event.consumer.ts';
+import { PostgresProcessedEventRepository } from './infrastructure/persistence/postgres/postgres-processed-event.repository.ts';
+import { SynchronizeVacationStatus } from './application/use-cases/synchronize-vacation-status.use-case.ts';
+import { CONSUMED_EVENT_TYPES, EVENT_PRODUCER } from './shared/constants/event-types.constants.ts';
 
 const config = loadConfig();
 const logger = createLogger(config.logging);
@@ -48,6 +51,18 @@ async function bootstrap(): Promise<void> {
     EVENT_PRODUCER,
     logger,
   );
+  const processedEvents = new PostgresProcessedEventRepository(pool, config.database.schema);
+  const vacationStatus = new SynchronizeVacationStatus(repository);
+  const consumer = new RabbitmqEventConsumer(
+    brokerConnection, config.broker.exchange, config.broker.queue, processedEvents, logger,
+  );
+  consumer.on(CONSUMED_EVENT_TYPES.VACATION_STARTED, async (event) => {
+    await vacationStatus.started((event.data as { empleadoId: string }).empleadoId);
+  });
+  consumer.on(CONSUMED_EVENT_TYPES.VACATION_FINISHED, async (event) => {
+    await vacationStatus.finished((event.data as { empleadoId: string }).empleadoId);
+  });
+  await consumer.start();
   await departmentClient.warmUpCatalog();
   const app = createApp(
     repository,
@@ -71,6 +86,7 @@ async function bootstrap(): Promise<void> {
         process.exitCode = 1;
       }
       await brokerConnection.close();
+      consumer.stop();
       await pool.end();
       logger.info('Employee service stopped');
       process.exit();

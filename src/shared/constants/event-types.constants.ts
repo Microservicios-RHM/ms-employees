@@ -4,4 +4,9 @@ export const EVENT_TYPES = {
   EMPLOYEE_RETIRED: 'empleado.retirado',
 } as const;
 
+export const CONSUMED_EVENT_TYPES = {
+  VACATION_STARTED: 'vacaciones.iniciadas',
+  VACATION_FINISHED: 'vacaciones.finalizadas',
+} as const;
+
 export const EVENT_PRODUCER = 'empleados-service';

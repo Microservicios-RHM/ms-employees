@@ -31,6 +31,7 @@ const environmentSchema = z.object({
   DEPARTMENTS_CIRCUIT_BREAKER_RESET_TIMEOUT_MS: z.coerce.number().int().min(100).max(120_000).default(30_000),
   BROKER_URL: z.string().trim().regex(/^amqps?:\/\/.+/, 'Debe ser una URL amqp:// o amqps://'),
   BROKER_EXCHANGE: z.string().trim().min(1).default('rhm.events'),
+  BROKER_QUEUE: z.string().trim().min(1).default('empleados.queue'),
   BROKER_CONNECT_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(5),
   BROKER_CONNECT_RETRY_DELAY_MS: z.coerce.number().int().min(100).max(30_000).default(1000),
   DEPARTMENTS_CACHE_TTL_SECONDS: z.coerce.number().int().min(1).max(86_400).default(300),
@@ -84,6 +85,7 @@ export interface AppConfig {
   readonly broker: {
     readonly url: string;
     readonly exchange: string;
+    readonly queue: string;
     readonly connectMaxAttempts: number;
     readonly connectRetryDelayMs: number;
   };
@@ -124,6 +126,7 @@ export function loadConfig(): AppConfig {
     broker: {
       url: env.BROKER_URL,
       exchange: env.BROKER_EXCHANGE,
+      queue: env.BROKER_QUEUE,
       connectMaxAttempts: env.BROKER_CONNECT_MAX_ATTEMPTS,
       connectRetryDelayMs: env.BROKER_CONNECT_RETRY_DELAY_MS,
     },
