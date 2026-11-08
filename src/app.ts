@@ -1,6 +1,7 @@
 import express from 'express';
 import helmet from 'helmet';
 import { Counter, Registry, collectDefaultMetrics } from 'prom-client';
+import { context, propagation, SpanKind, trace } from '@opentelemetry/api';
 import type { Logger } from 'pino';
 import { RegisterEmployee } from './application/use-cases/register-employee.use-case.ts';
 import { UpdateEmployee } from './application/use-cases/update-employee.use-case.ts';
@@ -46,6 +47,21 @@ export function createApp(
   const listEmployees = new ListEmployees(repository);
 
   app.disable('x-powered-by');
+  app.use((request, response, next) => {
+    const extractedContext = propagation.extract(context.active(), request.headers);
+    trace.getTracer('empleados-service').startActiveSpan(
+      `${request.method} ${request.path}`,
+      { kind: SpanKind.SERVER, attributes: { 'http.request.method': request.method, 'url.path': request.path } },
+      extractedContext,
+      (span) => {
+        response.on('finish', () => {
+          span.setAttribute('http.response.status_code', response.statusCode);
+          span.end();
+        });
+        next();
+      },
+    );
+  });
   app.use((request, response, next) => {
     response.on('finish', () => httpRequests.inc({ method: request.method, status: String(response.statusCode) }));
     next();

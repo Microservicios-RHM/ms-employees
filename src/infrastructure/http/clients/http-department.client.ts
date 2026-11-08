@@ -1,6 +1,7 @@
 import type { Logger } from 'pino';
 import CircuitBreaker from 'opossum';
 import NodeCache from 'node-cache';
+import { context, propagation } from '@opentelemetry/api';
 import type { DepartmentGateway } from '../../../domain/gateways/department.gateway.ts';
 import { AppError } from '../../../domain/errors/app.error.ts';
 import { HTTP_STATUS } from '../../../shared/constants/http-status.constants.ts';
@@ -87,8 +88,10 @@ export class HttpDepartmentClient implements DepartmentGateway, DepartmentCatalo
       if (remainingTimeMs <= 0) break;
 
       try {
+        const headers: Record<string, string> = { accept: 'application/json' };
+        propagation.inject(context.active(), headers);
         const response = await fetch(url, {
-          headers: { accept: 'application/json' },
+          headers,
           signal: AbortSignal.timeout(Math.min(this.config.timeoutMs, remainingTimeMs)),
         });
 
@@ -145,8 +148,10 @@ export class HttpDepartmentClient implements DepartmentGateway, DepartmentCatalo
   }
 
   private async refreshCatalog(): Promise<void> {
+    const headers: Record<string, string> = { accept: 'application/json' };
+    propagation.inject(context.active(), headers);
     const response = await fetch(`${this.config.baseUrl}/departamentos`, {
-      headers: { accept: 'application/json' },
+      headers,
       signal: AbortSignal.timeout(this.config.timeoutMs),
     });
     if (!response.ok) throw new Error(`Department catalog returned HTTP ${response.status}`);

@@ -13,7 +13,9 @@ import { RabbitmqEventConsumer } from './infrastructure/messaging/rabbitmq/rabbi
 import { PostgresProcessedEventRepository } from './infrastructure/persistence/postgres/postgres-processed-event.repository.ts';
 import { SynchronizeVacationStatus } from './application/use-cases/synchronize-vacation-status.use-case.ts';
 import { CONSUMED_EVENT_TYPES, EVENT_PRODUCER } from './shared/constants/event-types.constants.ts';
+import { startTelemetry, stopTelemetry } from './infrastructure/observability/telemetry.ts';
 
+startTelemetry();
 const config = loadConfig();
 const logger = createLogger(config.logging);
 const pool = createPostgresPool(config.database, logger);
@@ -88,6 +90,7 @@ async function bootstrap(): Promise<void> {
       await brokerConnection.close();
       consumer.stop();
       await pool.end();
+      await stopTelemetry();
       logger.info('Employee service stopped');
       process.exit();
     });

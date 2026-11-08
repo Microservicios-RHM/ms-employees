@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { context, propagation, SpanKind, trace } from '@opentelemetry/api';
 import type { Logger } from 'pino';
 import type { DomainEvent, EventPublisher } from '../../../domain/gateways/event-publisher.gateway.ts';
 import type { RabbitMqConnection } from './rabbitmq.connection.ts';
@@ -38,6 +39,10 @@ export class RabbitmqEventPublisher implements EventPublisher {
       data: event.data,
     };
 
+    const span = trace.getTracer('empleados-service').startSpan(`publish ${event.type}`, {
+      kind: SpanKind.PRODUCER,
+      attributes: { 'messaging.system': 'rabbitmq', 'messaging.destination.name': this.exchange, 'messaging.operation.name': 'publish' },
+    });
     try {
       const channel = await this.connection.ensureChannel();
       if (!channel) {
@@ -49,10 +54,13 @@ export class RabbitmqEventPublisher implements EventPublisher {
       }
 
       await channel.assertExchange(this.exchange, EXCHANGE_TYPE, { durable: true });
+      const headers: Record<string, string> = {};
+      propagation.inject(trace.setSpan(context.active(), span), headers);
       channel.publish(this.exchange, event.type, Buffer.from(JSON.stringify(envelope)), {
         contentType: 'application/json',
         persistent: true,
         messageId: envelope.id,
+        headers,
       });
       this.logger.info({ eventType: event.type, eventId: envelope.id }, 'Event published');
     } catch (error) {
@@ -60,6 +68,8 @@ export class RabbitmqEventPublisher implements EventPublisher {
         { err: error, eventType: event.type, eventId: envelope.id },
         'Event publish failed',
       );
+    } finally {
+      span.end();
     }
   }
 }
