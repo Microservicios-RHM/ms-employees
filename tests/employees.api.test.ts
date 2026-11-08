@@ -404,9 +404,9 @@ describe('API de empleados', () => {
   test('expone el health check', async () => {
     const response = await request(createTestApp()).get('/health').expect(200);
     assert.deepEqual(response.body, {
-      success: true,
-      message: 'Servicio disponible',
-      data: { status: 'UP' },
+      status: 'UP',
+      service: 'empleados-service',
+      checks: { application: 'UP' },
     });
     assert.match(response.headers['x-request-id'], /^[0-9a-f-]{36}$/i);
   });

@@ -20,7 +20,10 @@ import { ERROR_CODES } from './shared/constants/error-codes.constants.ts';
 import { RESPONSE_MESSAGES } from './shared/constants/response-messages.constants.ts';
 import type { DepartmentGateway } from './domain/gateways/department.gateway.ts';
 import type { EventPublisher } from './domain/gateways/event-publisher.gateway.ts';
-import type { DepartmentCatalogCacheManager } from './infrastructure/http/clients/http-department.client.ts';
+import type {
+  DepartmentCatalogCacheManager,
+  DepartmentResilienceMetricsProvider,
+} from './infrastructure/http/clients/http-department.client.ts';
 import { createDepartmentCacheRouter } from './infrastructure/http/routes/department-cache.routes.ts';
 
 export function createApp(
@@ -69,7 +72,11 @@ export function createApp(
   });
   app.get('/metrics', async (_request, response) => {
     response.setHeader('Content-Type', metricsRegistry.contentType);
-    response.send(await metricsRegistry.metrics());
+    const metrics = [await metricsRegistry.metrics()];
+    if (isDepartmentResilienceMetricsProvider(cacheManager)) {
+      metrics.push(await cacheManager.getResilienceMetrics());
+    }
+    response.send(metrics.join('\n'));
   });
   app.use(createRequestLogger(logger));
   app.use('/', documentationRouter);
@@ -107,4 +114,11 @@ export function createApp(
   app.use(errorHandler);
 
   return app;
+}
+
+function isDepartmentResilienceMetricsProvider(
+  cacheManager: DepartmentCatalogCacheManager | undefined,
+): cacheManager is DepartmentCatalogCacheManager & DepartmentResilienceMetricsProvider {
+  return typeof (cacheManager as Partial<DepartmentResilienceMetricsProvider> | undefined)
+    ?.getResilienceMetrics === 'function';
 }

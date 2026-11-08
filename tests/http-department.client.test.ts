@@ -121,6 +121,7 @@ describe('HttpDepartmentClient circuit breaker', () => {
       (error: unknown) => error instanceof Error && 'code' in error && error.code === 'DEPARTMENT_SERVICE_UNAVAILABLE',
     );
     assert.equal(calls, 3);
+    assert.match(await client.getResilienceMetrics(), /rhm_departments_circuit_breaker_open 1/);
   });
 
   test('permite HALF_OPEN y vuelve a CLOSED después de una validación exitosa', async () => {
