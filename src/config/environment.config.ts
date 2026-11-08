@@ -1,10 +1,15 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { z } from 'zod';
 
 const envPath = resolve(process.cwd(), '.env');
 if (existsSync(envPath)) {
   process.loadEnvFile(envPath);
+}
+
+for (const name of ['DB_PASSWORD', 'BROKER_URL', 'CACHE_ADMIN_TOKEN']) {
+  const file = process.env[`${name}_FILE`];
+  if (!process.env[name] && file) process.env[name] = readFileSync(file, 'utf8').trim();
 }
 
 const environmentSchema = z.object({
