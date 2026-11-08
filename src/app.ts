@@ -10,7 +10,7 @@ import { GetEmployeeById } from './application/use-cases/get-employee-by-id.use-
 import { ListEmployees } from './application/use-cases/list-employees.use-case.ts';
 import type { EmployeeRepository } from './domain/repositories/employee.repository.ts';
 import { createEmployeeRouter } from './infrastructure/http/routes/employee.routes.ts';
-import healthRouter from './infrastructure/http/routes/health.routes.ts';
+import { createHealthRouter, type HealthCheck } from './infrastructure/http/routes/health.routes.ts';
 import { errorHandler } from './infrastructure/http/middlewares/error-handler.middleware.ts';
 import documentationRouter from './infrastructure/http/routes/documentation.routes.ts';
 import { createRequestLogger } from './infrastructure/http/middlewares/request-logger.middleware.ts';
@@ -30,6 +30,7 @@ export function createApp(
   logger: Logger,
   cacheManager?: DepartmentCatalogCacheManager,
   cacheAdminToken?: string,
+  healthCheck: HealthCheck = async () => ({ application: 'UP' }),
 ) {
   const app = express();
   const metricsRegistry = new Registry();
@@ -79,7 +80,7 @@ export function createApp(
   });
   app.use(express.json({ limit: '1mb' }));
 
-  app.use('/', healthRouter);
+  app.use('/', createHealthRouter(healthCheck));
   app.use(
     '/empleados',
     createEmployeeRouter(

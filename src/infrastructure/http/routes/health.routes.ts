@@ -1,12 +1,19 @@
 import { Router } from 'express';
-import { sendSuccess } from '../responses/api.response.ts';
 import { HTTP_STATUS } from '../../../shared/constants/http-status.constants.ts';
-import { RESPONSE_MESSAGES } from '../../../shared/constants/response-messages.constants.ts';
 
-const healthRouter = Router();
+export type HealthCheck = () => Promise<Record<string, 'UP' | 'DOWN'>>;
 
-healthRouter.get('/health', (_req, res) => {
-  sendSuccess(res, HTTP_STATUS.OK, RESPONSE_MESSAGES.service.available, { status: 'UP' });
-});
+export function createHealthRouter(check: HealthCheck): Router {
+  const healthRouter = Router();
+  healthRouter.get('/health', async (_req, res) => {
+    const checks = await check();
+    const status = Object.values(checks).every((value) => value === 'UP') ? 'UP' : 'DOWN';
+    res.status(status === 'UP' ? HTTP_STATUS.OK : HTTP_STATUS.SERVICE_UNAVAILABLE).json({
+      status,
+      service: 'empleados-service',
+      checks,
+    });
+  });
+  return healthRouter;
+}
 
-export default healthRouter;

@@ -73,6 +73,15 @@ async function bootstrap(): Promise<void> {
     logger,
     departmentClient,
     config.cacheAdminToken,
+    async () => {
+      const checks: Record<string, 'UP' | 'DOWN'> = { database: 'DOWN', broker: 'DOWN' };
+      try {
+        await pool.query('SELECT 1');
+        checks.database = 'UP';
+      } catch { /* reported as DOWN */ }
+      checks.broker = (await brokerConnection.ensureChannel()) ? 'UP' : 'DOWN';
+      return checks;
+    },
   );
   const server = http.createServer(app);
 
