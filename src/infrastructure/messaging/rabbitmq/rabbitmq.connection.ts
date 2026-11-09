@@ -32,7 +32,10 @@ export class RabbitMqConnection {
         this.logger.info('RabbitMQ connection ready');
         return;
       } catch (error) {
-        this.logger.warn({ err: error, attempt }, 'RabbitMQ connection attempt failed');
+        this.logger.warn(
+          { attempt, errorType: error instanceof Error ? error.name : 'UnknownError' },
+          'RabbitMQ connection attempt failed',
+        );
         if (attempt < this.config.connectMaxAttempts) {
           await this.delay(this.config.connectRetryDelayMs * attempt);
         }
@@ -58,7 +61,10 @@ export class RabbitMqConnection {
 
   private registerRecoveryHandlers(): void {
     this.connection?.on('error', (error) => {
-      this.logger.warn({ err: error }, 'RabbitMQ connection error');
+      this.logger.warn(
+        { errorType: error instanceof Error ? error.name : 'UnknownError' },
+        'RabbitMQ connection error',
+      );
       this.channel = null;
       this.connection = null;
     });

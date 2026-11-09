@@ -1,6 +1,8 @@
 import type { Logger } from 'pino';
 import CircuitBreaker from 'opossum';
 import NodeCache from 'node-cache';
+import { context, propagation } from '@opentelemetry/api';
+import { Counter, Gauge, Registry } from 'prom-client';
 import type { DepartmentGateway } from '../../../domain/gateways/department.gateway.ts';
 import { AppError } from '../../../domain/errors/app.error.ts';
 import { HTTP_STATUS } from '../../../shared/constants/http-status.constants.ts';
@@ -23,12 +25,28 @@ export interface DepartmentCatalogCacheManager {
   clearCatalog(): number;
 }
 
-export class HttpDepartmentClient implements DepartmentGateway, DepartmentCatalogCacheManager {
+export interface DepartmentResilienceMetricsProvider {
+  getResilienceMetrics(): Promise<string>;
+}
+
+export class HttpDepartmentClient
+  implements DepartmentGateway, DepartmentCatalogCacheManager, DepartmentResilienceMetricsProvider {
   private static readonly catalogCacheKey = 'departments:catalog';
   private readonly config: DepartmentClientConfig;
   private readonly logger: Logger;
   private readonly circuitBreaker: CircuitBreaker<[string], boolean>;
   private readonly cache: NodeCache;
+  private readonly metricsRegistry = new Registry();
+  private readonly circuitBreakerOpen = new Gauge({
+    name: 'rhm_departments_circuit_breaker_open',
+    help: 'Whether the departments validation circuit breaker is open (1) or closed (0)',
+    registers: [this.metricsRegistry],
+  });
+  private readonly cacheFallbacks = new Counter({
+    name: 'rhm_departments_cache_fallback_total',
+    help: 'Department validations resolved from the catalog cache while the dependency is unavailable',
+    registers: [this.metricsRegistry],
+  });
 
   constructor(
     config: DepartmentClientConfig,
@@ -50,6 +68,7 @@ export class HttpDepartmentClient implements DepartmentGateway, DepartmentCatalo
         resetTimeout: this.config.circuitBreakerResetTimeoutMs,
       },
     );
+    this.circuitBreakerOpen.set(0);
     this.registerCircuitBreakerLogging();
   }
 
@@ -65,6 +84,7 @@ export class HttpDepartmentClient implements DepartmentGateway, DepartmentCatalo
             { departmentId: id },
             'Department validation served from cache because the service is unavailable',
           );
+          this.cacheFallbacks.inc();
           return true;
         }
 
@@ -87,8 +107,10 @@ export class HttpDepartmentClient implements DepartmentGateway, DepartmentCatalo
       if (remainingTimeMs <= 0) break;
 
       try {
+        const headers: Record<string, string> = { accept: 'application/json' };
+        propagation.inject(context.active(), headers);
         const response = await fetch(url, {
-          headers: { accept: 'application/json' },
+          headers,
           signal: AbortSignal.timeout(Math.min(this.config.timeoutMs, remainingTimeMs)),
         });
 
@@ -128,6 +150,10 @@ export class HttpDepartmentClient implements DepartmentGateway, DepartmentCatalo
     return removed;
   }
 
+  async getResilienceMetrics(): Promise<string> {
+    return this.metricsRegistry.metrics();
+  }
+
   private departmentServiceUnavailableError(): AppError {
     return new AppError(
       RESPONSE_MESSAGES.department.unavailable,
@@ -145,8 +171,10 @@ export class HttpDepartmentClient implements DepartmentGateway, DepartmentCatalo
   }
 
   private async refreshCatalog(): Promise<void> {
+    const headers: Record<string, string> = { accept: 'application/json' };
+    propagation.inject(context.active(), headers);
     const response = await fetch(`${this.config.baseUrl}/departamentos`, {
-      headers: { accept: 'application/json' },
+      headers,
       signal: AbortSignal.timeout(this.config.timeoutMs),
     });
     if (!response.ok) throw new Error(`Department catalog returned HTTP ${response.status}`);
@@ -189,12 +217,15 @@ export class HttpDepartmentClient implements DepartmentGateway, DepartmentCatalo
 
   private registerCircuitBreakerLogging(): void {
     this.circuitBreaker.on('open', () => {
+      this.circuitBreakerOpen.set(1);
       this.logger.warn('Department validation circuit breaker OPEN');
     });
     this.circuitBreaker.on('halfOpen', () => {
+      this.circuitBreakerOpen.set(0);
       this.logger.info('Department validation circuit breaker HALF_OPEN');
     });
     this.circuitBreaker.on('close', () => {
+      this.circuitBreakerOpen.set(0);
       this.logger.info('Department validation circuit breaker CLOSED');
     });
     this.circuitBreaker.on('success', (_result, latencyMs) => {

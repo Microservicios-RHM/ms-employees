@@ -127,6 +127,18 @@ export class PostgresEmployeeRepository implements EmployeeRepository {
     }
   }
 
+  async updateStatus(id: string, status: EmployeeStatus): Promise<Employee | undefined> {
+    // Un evento de vacaciones nunca debe revivir ni sobrescribir la baja lÃ³gica de un empleado.
+    const result = await this.pool.query<EmployeeRow>(
+      `UPDATE ${this.table}
+          SET estado = $2, updated_at = NOW()
+        WHERE id = $1 AND estado <> 'RETIRADO'
+        RETURNING ${EMPLOYEE_COLUMNS}`,
+      [id, status],
+    );
+    return result.rows[0] ? this.toDomain(result.rows[0]) : undefined;
+  }
+
   async retire(id: string, fechaRetiro: string): Promise<Employee> {
     const result = await this.pool.query<EmployeeRow>(
       `UPDATE ${this.table}
