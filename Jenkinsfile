@@ -54,6 +54,12 @@ pipeline {
       }
     }
 
+    stage('Secret scan') {
+      steps {
+        sh 'docker run --rm --volumes-from "$HOSTNAME" zricethezav/gitleaks:v8.24.2 detect --source="$PWD" --no-git --redact --exit-code=1'
+      }
+    }
+
     stage('Build') {
       agent {
         docker {
@@ -97,12 +103,6 @@ pipeline {
             sourceCodeRetention: 'EVERY_BUILD'
           )
         }
-      }
-    }
-
-    stage('Secret scan') {
-      steps {
-        sh 'docker run --rm --volumes-from "$HOSTNAME" zricethezav/gitleaks:v8.24.2 detect --source="$PWD" --no-git --redact --exit-code=1'
       }
     }
 
