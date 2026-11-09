@@ -17,6 +17,7 @@ export class RabbitMqConnection {
   private readonly logger: Logger;
   private connection: ChannelModel | null = null;
   private channel: Channel | null = null;
+  private connecting: Promise<void> | null = null;
 
   constructor(config: RabbitMqConnectionConfig, logger: Logger) {
     this.config = config;
@@ -45,7 +46,12 @@ export class RabbitMqConnection {
 
   async ensureChannel(): Promise<Channel | null> {
     if (this.channel) return this.channel;
-    await this.connect();
+    // Reto 8: /health llama aquí cada 10 s; compartir el intento en curso evita abrir conexiones
+    // duplicadas mientras el broker sigue caído.
+    this.connecting ??= this.connect().finally(() => {
+      this.connecting = null;
+    });
+    await this.connecting;
     return this.channel;
   }
 

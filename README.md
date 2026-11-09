@@ -531,3 +531,16 @@ Checkout → Build → Test → SonarQube → Quality Gate → Package → Publi
 - **Cobertura**: `reports/lcov.info` → `recordCoverage` (parser LCOV) y SonarQube (`sonar.javascript.lcov.reportPaths`).
 - **E2E**: la etapa levanta el sistema completo con la imagen `rhm/ms-employees:<build>-<sha7>` recién construida, corre la suite BDD de [e2e-tests](https://github.com/Microservicios-RHM/e2e-tests) y publica *Cucumber reports*, *Reporte BDD* y los logs del stack.
 - Una prueba fallida deja el build **UNSTABLE** y no se empaqueta; un Quality Gate fallido (cobertura < 70 %) o un Dockerfile roto lo dejan en **FAILURE**.
+
+## Observabilidad (Reto 8)
+
+Instrumentación de `empleados-service` para el stack de observabilidad del ecosistema (Prometheus,
+Loki, Zipkin y Grafana). Arquitectura, dashboard, alertas y pruebas de caos en el
+[README de infraestructura](https://github.com/Microservicios-RHM/rhm-database-infrastructure#observabilidad-y-monitoreo-reto-8).
+
+| Pilar | Implementación |
+|---|---|
+| Métricas | `prom-client` — `GET /metrics`. Métricas comunes a los 7 servicios: `http_requests_total{method,route,status}`, `http_request_duration_seconds{method,route,status}`, `process_cpu_seconds_total`, `process_resident_memory_bytes`. |
+| Health | `GET /health` verifica PostgreSQL (`SELECT 1`) y la conexión a RabbitMQ. Formato `{"status":"UP","service":"empleados-service","checks":{...}}`, 200 si todo está UP y 503 si algo está DOWN. |
+| Trazas | `@opentelemetry/sdk-trace` + `instrumentation-http`/`express`/`undici` (llamada a departamentos)/`pg` + `exporter-zipkin` ([src/infrastructure/observability/tracing.ts](src/infrastructure/observability/tracing.ts)). La publicación en RabbitMQ crea un span PRODUCER e inyecta `traceparent` en las cabeceras del mensaje ([amqp-trace-context.ts](src/infrastructure/observability/amqp-trace-context.ts)). Exporta a `OTEL_EXPORTER_ZIPKIN_ENDPOINT` con propagación W3C Trace Context; sin esa variable el tracing queda desactivado. |
+| Logs | `pino` con `timestamp`, `level` en mayúsculas, `service`, `traceId`, `message`. |

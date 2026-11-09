@@ -56,6 +56,15 @@ async function bootstrap(): Promise<void> {
     logger,
     departmentClient,
     config.cacheAdminToken,
+    {
+      database: async () => {
+        await pool.query('SELECT 1');
+        return true;
+      },
+      // Intenta reconectar: si el broker arrancó después que este servicio, el check lo recupera
+      // sin esperar a que alguien publique un evento.
+      messageBroker: async () => (await brokerConnection.ensureChannel()) !== null,
+    },
   );
   const server = http.createServer(app);
 

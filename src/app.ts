@@ -8,7 +8,9 @@ import { GetEmployeeById } from './application/use-cases/get-employee-by-id.use-
 import { ListEmployees } from './application/use-cases/list-employees.use-case.ts';
 import type { EmployeeRepository } from './domain/repositories/employee.repository.ts';
 import { createEmployeeRouter } from './infrastructure/http/routes/employee.routes.ts';
-import healthRouter from './infrastructure/http/routes/health.routes.ts';
+import { createHealthRouter } from './infrastructure/http/routes/health.routes.ts';
+import type { HealthCheck } from './infrastructure/observability/health.ts';
+import { createHttpMetrics } from './infrastructure/observability/metrics.ts';
 import { errorHandler } from './infrastructure/http/middlewares/error-handler.middleware.ts';
 import documentationRouter from './infrastructure/http/routes/documentation.routes.ts';
 import { createRequestLogger } from './infrastructure/http/middlewares/request-logger.middleware.ts';
@@ -28,8 +30,11 @@ export function createApp(
   logger: Logger,
   cacheManager?: DepartmentCatalogCacheManager,
   cacheAdminToken?: string,
+  healthChecks: Record<string, HealthCheck> = {},
 ) {
   const app = express();
+  const serviceName = process.env.OTEL_SERVICE_NAME ?? 'empleados-service';
+  const metrics = createHttpMetrics(serviceName);
   const registerEmployee = new RegisterEmployee(repository, departmentGateway, eventPublisher);
   const updateEmployee = new UpdateEmployee(repository, departmentGateway, eventPublisher);
   const retireEmployee = new RetireEmployee(repository, eventPublisher);
@@ -37,6 +42,10 @@ export function createApp(
   const listEmployees = new ListEmployees(repository);
 
   app.disable('x-powered-by');
+  // Reto 8: el middleware de métricas va primero para medir también las respuestas de error, y
+  // /metrics queda fuera de helmet/JSON y del access log (Prometheus lo consulta cada 15 s).
+  app.use(metrics.middleware);
+  app.get('/metrics', metrics.handler);
   app.use(createRequestLogger(logger));
   app.use('/', documentationRouter);
   app.use(helmet());
@@ -46,7 +55,7 @@ export function createApp(
   });
   app.use(express.json({ limit: '1mb' }));
 
-  app.use('/', healthRouter);
+  app.use('/', createHealthRouter(serviceName, healthChecks));
   app.use(
     '/empleados',
     createEmployeeRouter(

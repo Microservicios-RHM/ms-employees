@@ -23,4 +23,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget -qO- http://127.0.0.1:8080/health || exit 1
 
-CMD ["node", "dist/server.js"]
+# Reto 8: OpenTelemetry se carga antes que la aplicación para poder instrumentar http, express y pg.
+CMD ["node", "--import", "./dist/infrastructure/observability/tracing.js", "dist/server.js"]
