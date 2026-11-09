@@ -1,6 +1,6 @@
 import express from 'express';
 import helmet from 'helmet';
-import { Counter, Registry, collectDefaultMetrics } from 'prom-client';
+import { Counter, Histogram, Registry, collectDefaultMetrics } from 'prom-client';
 import { context, propagation, SpanKind, trace } from '@opentelemetry/api';
 import type { Logger } from 'pino';
 import { RegisterEmployee } from './application/use-cases/register-employee.use-case.ts';
@@ -39,11 +39,12 @@ export function createApp(
   const metricsRegistry = new Registry();
   collectDefaultMetrics({ register: metricsRegistry, prefix: 'rhm_employees_' });
   const httpRequests = new Counter({
-    name: 'rhm_employees_http_requests_total',
+    name: 'rhm_http_requests_total',
     help: 'Total HTTP requests handled by empleados-service',
-    labelNames: ['method', 'status'] as const,
+    labelNames: ['service', 'method', 'status'] as const,
     registers: [metricsRegistry],
   });
+  const httpDuration = new Histogram({ name: 'rhm_http_request_duration_seconds', help: 'HTTP request duration in seconds', labelNames: ['service', 'method', 'status'] as const, registers: [metricsRegistry] });
   const registerEmployee = new RegisterEmployee(repository, departmentGateway, eventPublisher);
   const updateEmployee = new UpdateEmployee(repository, departmentGateway, eventPublisher);
   const retireEmployee = new RetireEmployee(repository, eventPublisher);
@@ -67,7 +68,8 @@ export function createApp(
     );
   });
   app.use((request, response, next) => {
-    response.on('finish', () => httpRequests.inc({ method: request.method, status: String(response.statusCode) }));
+    const end = httpDuration.startTimer({ service: 'empleados-service', method: request.method });
+    response.on('finish', () => { const status = String(response.statusCode); httpRequests.inc({ service: 'empleados-service', method: request.method, status }); end({ status }); });
     next();
   });
   app.get('/metrics', async (_request, response) => {

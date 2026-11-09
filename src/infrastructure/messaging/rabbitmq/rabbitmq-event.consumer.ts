@@ -1,4 +1,5 @@
 import type { ConsumeMessage } from 'amqplib';
+import { context, propagation, SpanKind, trace } from '@opentelemetry/api';
 import type { Logger } from 'pino';
 import type { ProcessedEventRepository } from '../../../domain/repositories/processed-event.repository.ts';
 import type { RabbitMqConnection } from './rabbitmq.connection.ts';
@@ -74,7 +75,11 @@ export class RabbitmqEventConsumer {
         channel.ack(message);
         return;
       }
-      await handler(envelope);
+      const headers = Object.fromEntries(Object.entries(message.properties.headers ?? {}).map(([key, value]) => [key, Buffer.isBuffer(value) ? value.toString() : String(value)]));
+      const parent = propagation.extract(context.active(), headers);
+      await trace.getTracer('empleados-service').startActiveSpan(`consume ${routingKey}`, { kind: SpanKind.CONSUMER }, parent, async (span) => {
+        try { await handler(envelope); } finally { span.end(); }
+      });
       channel.ack(message);
     } catch (error) {
       this.logger.error({ err: error }, 'Vacation lifecycle event discarded');
