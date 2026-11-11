@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Logger } from 'pino';
 import type { DomainEvent, EventPublisher } from '../../../domain/gateways/event-publisher.gateway.ts';
 import type { RabbitMqConnection } from './rabbitmq.connection.ts';
+import { withPublishSpan } from '../../observability/amqp-trace-context.ts';
 
 export interface EventEnvelope<T = unknown> {
   readonly id: string;
@@ -49,11 +50,15 @@ export class RabbitmqEventPublisher implements EventPublisher {
       }
 
       await channel.assertExchange(this.exchange, EXCHANGE_TYPE, { durable: true });
-      channel.publish(this.exchange, event.type, Buffer.from(JSON.stringify(envelope)), {
-        contentType: 'application/json',
-        persistent: true,
-        messageId: envelope.id,
-      });
+      // Reto 8: el contexto de traza viaja en las cabeceras del mensaje (W3C traceparent).
+      await withPublishSpan(this.exchange, event.type, (headers) =>
+        channel.publish(this.exchange, event.type, Buffer.from(JSON.stringify(envelope)), {
+          contentType: 'application/json',
+          persistent: true,
+          messageId: envelope.id,
+          headers,
+        }),
+      );
       this.logger.info({ eventType: event.type, eventId: envelope.id }, 'Event published');
     } catch (error) {
       this.logger.error(
